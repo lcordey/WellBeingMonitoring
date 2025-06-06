@@ -1,0 +1,43 @@
+using Microsoft.AspNetCore.Mvc;
+using RestApiInterface.Commands;
+using WebApi.Handlers;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Register the command handler for DI
+builder.Services.AddSingleton<IRestApiCommandHandler, RestApiCommandHandler>();
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+// POST /command endpoint for setting data
+app.MapPost("/command", async ([FromBody]SetDataCmd command, IRestApiCommandHandler handler) =>
+{
+    await handler.SetDataAsync(command);
+    return Results.Ok();
+}).WithName("PostSetDataCommand");
+
+// GET /command endpoint for getting data by date
+app.MapGet("/command", async ([FromBody] GetDataCmd command, IRestApiCommandHandler handler) =>
+{
+    var result = await handler.GetDataAsync(command);
+    return result is not null ? Results.Ok(result) : Results.NotFound();
+}).WithName("GetDataCommand");
+
+app.Run();
