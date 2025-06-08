@@ -5,6 +5,7 @@ namespace RestApiInterface.Data
     /// </summary>
     public enum ObservationType
     {
+        None,
         Alcohol,
         Sleep,
         Food,

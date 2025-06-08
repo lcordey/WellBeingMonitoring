@@ -5,6 +5,7 @@ namespace RestApiInterface.Data
     /// </summary>
     public enum SymptomType
     {
+        None,
         Headache,
         Tiredness,
         Nausea,

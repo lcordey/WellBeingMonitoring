@@ -66,3 +66,6 @@ C:\Projects\devenir-riche\WellBeingMonitoring\WebApi\obj\Debug\net8.0\refint\Wel
 C:\Projects\devenir-riche\WellBeingMonitoring\WebApi\obj\Debug\net8.0\WellBeingMonitoring.pdb
 C:\Projects\devenir-riche\WellBeingMonitoring\WebApi\obj\Debug\net8.0\WellBeingMonitoring.genruntimeconfig.cache
 C:\Projects\devenir-riche\WellBeingMonitoring\WebApi\obj\Debug\net8.0\ref\WellBeingMonitoring.dll
+C:\Projects\devenir-riche\WellBeingMonitoring\WebApi\bin\Debug\net8.0\Microsoft.Extensions.DependencyInjection.Abstractions.dll
+C:\Projects\devenir-riche\WellBeingMonitoring\WebApi\bin\Debug\net8.0\Microsoft.Extensions.Logging.Abstractions.dll
+C:\Projects\devenir-riche\WellBeingMonitoring\WebApi\bin\Debug\net8.0\Npgsql.dll

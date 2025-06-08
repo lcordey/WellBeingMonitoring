@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using RestApiInterface.Commands;
 using WebApi.Handlers;
+using WebApi.DataBase;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,17 @@ builder.Services.AddSwaggerGen();
 
 // Register the command handler for DI
 builder.Services.AddSingleton<IRestApiCommandHandler, RestApiCommandHandler>();
+
+// Register WellBeingDataRepository for DI
+builder.Services.AddSingleton<IWellBeingDataRepository, WellBeingDataRepository>();
+
+// Register GenericPostgresRepository for DI
+builder.Services.AddSingleton<IGenericPostgresRepository>(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+    var connectionString = configuration.GetConnectionString("WellBeingDatabase");
+    return new GenericPostgresRepository(connectionString);
+});
 
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
 {
@@ -27,7 +39,7 @@ if (app.Environment.IsDevelopment())
 }
 
 // POST /command endpoint for setting data
-app.MapPost("/command", async ([FromBody]SetDataCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command", async ([FromBody] SetDataCmd command, IRestApiCommandHandler handler) =>
 {
     await handler.SetDataAsync(command);
     return Results.Ok();

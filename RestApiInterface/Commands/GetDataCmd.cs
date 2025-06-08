@@ -1,7 +1,9 @@
+using RestApiInterface.Data;
+
 namespace RestApiInterface.Commands
 {
     /// <summary>
-    /// Command to get well-being data (Observation, Symptom, etc.) for a given date.
+    /// Command to get data for a given date, with optional observation or symptom type.
     /// </summary>
-    public record GetDataCmd(DateOnly Date);
+    public record GetDataCmd(DateOnly Date, ObservationType? ObservationType, SymptomType? SymptomType);
 }

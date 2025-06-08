@@ -1,30 +1,36 @@
 using RestApiInterface.Data;
 using RestApiInterface.Commands;
+using WebApi.DataBase;
 
 namespace WebApi.Handlers
 {
     public class RestApiCommandHandler : IRestApiCommandHandler
     {
         private readonly ILogger<RestApiCommandHandler> _logger;
-        private readonly List<WellBeingData> _dataStore = new(); // In-memory store for demo
+        private readonly IWellBeingDataRepository _repository;
 
-        public RestApiCommandHandler(ILogger<RestApiCommandHandler> logger)
+        public RestApiCommandHandler(ILogger<RestApiCommandHandler> logger, IWellBeingDataRepository repository)
         {
             _logger = logger;
+            _repository = repository;
         }
 
-        public Task SetDataAsync(SetDataCmd command)
+        public async Task SetDataAsync(SetDataCmd command)
         {
-            _logger.LogInformation("Saving data: {Data}", command);
-            _dataStore.Add(command.Data);
-            return Task.CompletedTask;
+            _logger.LogInformation("Saving data for command: {command}", command);
+            await _repository.AddAsync(command.Data);
         }
 
-        public Task<WellBeingData?> GetDataAsync(GetDataCmd command)
+        public async Task<WellBeingData?> GetDataAsync(GetDataCmd command)
         {
-            var result = _dataStore.FirstOrDefault(d => d.Date == command.Date);
-            _logger.LogInformation("Retrieving data for {Date}: {Result}", command.Date, result?.GetType().Name ?? "None");
-            return Task.FromResult(result);
+            _logger.LogInformation("Retrieving data for command {command}", command);
+            if (command.ObservationType is ObservationType observationtype)
+                return await _repository.GetAsync(command.Date, observationtype);
+            if (command.SymptomType is SymptomType symptomType)
+                return await _repository.GetAsync(command.Date, symptomType);
+
+            return null;
         }
     }
 }
+
