@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RestApiInterface")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+25122a3d0f4f46286ce20a244bed77ef8a949229")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0d365054f28a0868b2a074a324a7ce17764fdf08")]
 [assembly: System.Reflection.AssemblyProductAttribute("RestApiInterface")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RestApiInterface")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

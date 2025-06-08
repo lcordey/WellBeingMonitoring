@@ -8,9 +8,8 @@ namespace RestApiInterface.Data
     [JsonPolymorphic(TypeDiscriminatorPropertyName = "dataType")]
     [JsonDerivedType(typeof(Observation), "observation")]
     [JsonDerivedType(typeof(Symptom), "symptom")]
-    public record WellBeingData
-    {
-        public DateOnly Date;
-        public object? Value;
-    }
+    public record WellBeingData(
+        DateOnly Date,
+        object? Value
+    );
 }

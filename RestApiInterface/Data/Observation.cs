@@ -17,6 +17,8 @@ namespace RestApiInterface.Data
     /// Represents a daily observation (e.g., alcohol, sleep, food, sun exposure, etc.)
     /// </summary>
     public record Observation(
+        DateOnly Date,
+        object? Value,
         ObservationType ObservationType
-    ) : WellBeingData;
+    ) : WellBeingData(Date, Value);
 }

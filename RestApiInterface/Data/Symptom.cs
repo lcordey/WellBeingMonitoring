@@ -17,6 +17,8 @@ namespace RestApiInterface.Data
     /// Represents a daily symptom (e.g., headache, tiredness, nausea, etc.)
     /// </summary>
     public record Symptom(
+        DateOnly Date,
+        object? Value,
         SymptomType SymptomType
-    ) : WellBeingData;
+    ) : WellBeingData(Date, Value);
 }
