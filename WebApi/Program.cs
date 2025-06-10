@@ -29,6 +29,17 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
     options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 });
 
+// Enable CORS for frontend
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy => policy
+            .WithOrigins("http://localhost:5173")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+    );
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -37,6 +48,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// Use CORS policy
+app.UseCors("AllowFrontend");
 
 // POST /command endpoint for setting data
 app.MapPost("/command", async ([FromBody] SetDataCmd command, IRestApiCommandHandler handler) =>
@@ -51,5 +65,12 @@ app.MapGet("/command", async ([FromBody] GetDataCmd command, IRestApiCommandHand
     var result = await handler.GetDataAsync(command);
     return result is not null ? Results.Ok(result) : Results.NotFound();
 }).WithName("GetDataCommand");
+
+// POST /command/get endpoint for getting data by date
+app.MapPost("/command/get", async ([FromBody] GetDataCmd command, IRestApiCommandHandler handler) =>
+{
+    var result = await handler.GetDataAsync(command);
+    return result is not null ? Results.Ok(result) : Results.NotFound();
+}).WithName("PostGetDataCommand");
 
 app.Run();
