@@ -12,5 +12,6 @@ namespace WebApi.DataBase
         Task RemoveAsync(string tableName, IDictionary<string, object> filters);
         Task<IList<object>> GetAsync(string tableName, IDictionary<string, object> filters);
         Task UpdateAsync(string tableName, IDictionary<string, object> columnValues, IDictionary<string, object> filters);
+        Task<IList<object>> GetAllAsync(string tableName);
     }
 }

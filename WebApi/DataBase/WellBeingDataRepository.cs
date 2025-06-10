@@ -78,5 +78,63 @@ namespace WebApi.DataBase
             }
             return null;
         }
+
+        public async Task<IEnumerable<WellBeingData>> GetAllAsync(
+            DateOnly? startDate,
+            DateOnly? endDate,
+            ObservationType? observationType,
+            SymptomType? symptomType)
+        {
+            // Retrieve all data from your data source (replace with your actual data retrieval logic)
+            var allData = await GetAllDataFromDbAsync();
+
+            var filtered = allData.Where(data =>
+                (!startDate.HasValue || data.Date >= startDate.Value) &&
+                (!endDate.HasValue || data.Date <= endDate.Value) &&
+                (observationType == null || (data is Observation o && o.ObservationType == observationType)) &&
+                (symptomType == null || (data is Symptom s && s.SymptomType == symptomType))
+            );
+
+            return filtered.ToList();
+        }
+
+        private async Task<IEnumerable<WellBeingData>> GetAllDataFromDbAsync()
+        {
+            var allData = new List<WellBeingData>();
+
+            // Get all observations
+            var observations = await _genericRepo.GetAllAsync("Observations");
+            foreach (var row in observations)
+            {
+                if (row is object[] arr && arr.Length > 0)
+                {
+                    var json = arr[^1]?.ToString(); // Assume last column is Data
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        var obs = JsonSerializer.Deserialize<Observation>(json);
+                        if (obs != null)
+                            allData.Add(obs);
+                    }
+                }
+            }
+
+            // Get all symptoms
+            var symptoms = await _genericRepo.GetAllAsync("Symptoms");
+            foreach (var row in symptoms)
+            {
+                if (row is object[] arr && arr.Length > 0)
+                {
+                    var json = arr[^1]?.ToString(); // Assume last column is Data
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        var sym = JsonSerializer.Deserialize<Symptom>(json);
+                        if (sym != null)
+                            allData.Add(sym);
+                    }
+                }
+            }
+
+            return allData;
+        }
     }
 }

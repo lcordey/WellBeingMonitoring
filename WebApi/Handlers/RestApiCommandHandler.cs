@@ -31,6 +31,12 @@ namespace WebApi.Handlers
 
             return null;
         }
+
+        public async Task<IEnumerable<WellBeingData>> GetAllDataAsync(GetAllDataCmd command)
+        {
+            _logger.LogInformation("Retrieving all data for command {command}", command);
+            return await _repository.GetAllAsync(command.StartDate, command.EndDate, command.ObservationType, command.SymptomType);
+        }
     }
 }
 

@@ -43,7 +43,11 @@ export function WellBeingForm<TData, TQuery, TType = string>({
     try {
       const query = buildQuery(date, type);
       const data = await apiService.getData(query);
-      setResult(JSON.stringify(data, null, 2));
+      if (data === null) {
+        setResult('No data found for this query.');
+      } else {
+        setResult(JSON.stringify(data, null, 2));
+      }
     } catch (e: any) {
       setError(e.message);
     }

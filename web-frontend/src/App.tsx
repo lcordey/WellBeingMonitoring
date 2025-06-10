@@ -2,7 +2,9 @@ import { WellBeingForm } from './components/WellBeingForm'
 import { ApiService } from './services/ApiService'
 import { ObservationType, SymptomType } from './types/enums'
 import './App.css'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { WellBeingCalendar } from './components/WellBeingCalendar'
+import { getData, getAllData } from './api'
 
 // Observation API service instance
 const observationApi = new ApiService<any, any>(
@@ -61,7 +63,45 @@ function buildSymptomQuery(date: string, type: SymptomType) {
 }
 
 function App() {
-  const [mode, setMode] = useState<'observation' | 'symptom'>('observation')
+  const [mode, setMode] = useState<'observation' | 'symptom' | 'calendar'>('observation')
+  const [calendarObservationType, setCalendarObservationType] = useState<ObservationType | ''>('')
+  const [calendarSymptomType, setCalendarSymptomType] = useState<SymptomType | ''>('')
+  const [highlightedDates, setHighlightedDates] = useState<string[]>([])
+  const [selectedDate, setSelectedDate] = useState<string | undefined>()
+  const [dateColorMap, setDateColorMap] = useState<Record<string, 'observation' | 'symptom' | 'both'>>({})
+
+  // Calendar month/year state for filtering
+  const today = new Date()
+  const [calendarYear, setCalendarYear] = useState(today.getFullYear())
+  const [calendarMonth, setCalendarMonth] = useState(today.getMonth()) // 0-based
+
+  // Fetch all data for calendar view using new backend endpoint
+  useEffect(() => {
+    if (mode !== 'calendar') return
+    // Calculate start and end date for the current calendar month
+    const startDate = new Date(calendarYear, calendarMonth, 1)
+    const endDate = new Date(calendarYear, calendarMonth + 1, 0)
+    const startDateStr = startDate.toISOString().slice(0, 10)
+    const endDateStr = endDate.toISOString().slice(0, 10)
+    getAllData({
+      startDate: startDateStr,
+      endDate: endDateStr,
+      observationType: calendarObservationType || undefined,
+      symptomType: calendarSymptomType || undefined
+    }).then((data) => {
+      // Build a map: date -> type(s)
+      const map: Record<string, 'observation' | 'symptom' | 'both'> = {}
+      for (const d of data) {
+        if (d.dataType === 'observation') {
+          map[d.date] = map[d.date] === 'symptom' ? 'both' : 'observation'
+        } else if (d.dataType === 'symptom') {
+          map[d.date] = map[d.date] === 'observation' ? 'both' : 'symptom'
+        }
+      }
+      setDateColorMap(map)
+      setHighlightedDates(Object.keys(map))
+    })
+  }, [mode, calendarObservationType, calendarSymptomType, calendarYear, calendarMonth])
 
   return (
     <div className="App">
@@ -79,6 +119,12 @@ function App() {
         >
           Symptom
         </button>
+        <button
+          onClick={() => setMode('calendar')}
+          style={{ marginLeft: 8, fontWeight: mode === 'calendar' ? 'bold' : 'normal' }}
+        >
+          Calendar
+        </button>
       </div>
       {mode === 'observation' ? (
         <WellBeingForm
@@ -89,7 +135,7 @@ function App() {
           buildData={buildObservationData}
           buildQuery={buildObservationQuery}
         />
-      ) : (
+      ) : mode === 'symptom' ? (
         <WellBeingForm
           label="Symptom"
           typeOptions={getEnumOptions(SymptomType)}
@@ -97,6 +143,22 @@ function App() {
           initialType={SymptomType.Headache}
           buildData={buildSymptomData}
           buildQuery={buildSymptomQuery}
+        />
+      ) : (
+        <WellBeingCalendar
+          highlightedDates={highlightedDates}
+          dateColorMap={dateColorMap}
+          selectedDate={selectedDate}
+          onDateSelect={setSelectedDate}
+          observationType={calendarObservationType || undefined}
+          symptomType={calendarSymptomType || undefined}
+          onObservationTypeChange={t => setCalendarObservationType(t)}
+          onSymptomTypeChange={t => setCalendarSymptomType(t)}
+          // Pass month/year state and setters to calendar for navigation
+          calendarYear={calendarYear}
+          calendarMonth={calendarMonth}
+          setCalendarYear={setCalendarYear}
+          setCalendarMonth={setCalendarMonth}
         />
       )}
     </div>

@@ -73,4 +73,11 @@ app.MapPost("/command/get", async ([FromBody] GetDataCmd command, IRestApiComman
     return result is not null ? Results.Ok(result) : Results.NotFound();
 }).WithName("PostGetDataCommand");
 
+// POST /command/get-all endpoint for getting all filtered data
+app.MapPost("/command/get-all", async ([FromBody] GetAllDataCmd command, IRestApiCommandHandler handler) =>
+{
+    var result = await handler.GetAllDataAsync(command);
+    return Results.Ok(result);
+}).WithName("PostGetAllDataCommand");
+
 app.Run();

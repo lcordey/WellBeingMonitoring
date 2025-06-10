@@ -86,5 +86,22 @@ namespace WebApi.DataBase
             await connection.OpenAsync();
             await command.ExecuteNonQueryAsync();
         }
+
+        public async Task<IList<object>> GetAllAsync(string tableName)
+        {
+            var sql = $"SELECT * FROM {tableName}";
+            using var connection = new NpgsqlConnection(_connectionString);
+            using var command = new NpgsqlCommand(sql, connection);
+            await connection.OpenAsync();
+            using var reader = await command.ExecuteReaderAsync();
+            var results = new List<object>();
+            while (await reader.ReadAsync())
+            {
+                var values = new object[reader.FieldCount];
+                reader.GetValues(values);
+                results.Add(values);
+            }
+            return results;
+        }
     }
 }
