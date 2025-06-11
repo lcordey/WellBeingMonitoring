@@ -65,7 +65,8 @@ function buildSymptomQuery(date: string, type: SymptomType) {
 function App() {
   const [mode, setMode] = useState<'observation' | 'symptom' | 'calendar'>('observation')
   const [calendarObservationType, setCalendarObservationType] = useState<ObservationType | ''>('')
-  const [calendarSymptomType, setCalendarSymptomType] = useState<SymptomType | ''>('')
+  const [calendarObservationTypes, setCalendarObservationTypes] = useState<ObservationType[]>([])
+  const [calendarSymptomTypes, setCalendarSymptomTypes] = useState<SymptomType[]>([])
   const [highlightedDates, setHighlightedDates] = useState<string[]>([])
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
   const [dateColorMap, setDateColorMap] = useState<Record<string, 'observation' | 'symptom' | 'both'>>({})
@@ -86,8 +87,8 @@ function App() {
     getAllData({
       startDate: startDateStr,
       endDate: endDateStr,
-      observationType: calendarObservationType || undefined,
-      symptomType: calendarSymptomType || undefined
+      observationType: calendarObservationTypes,
+      symptomType: calendarSymptomTypes
     }).then((data) => {
       // Build a map: date -> type(s)
       const map: Record<string, 'observation' | 'symptom' | 'both'> = {}
@@ -101,7 +102,7 @@ function App() {
       setDateColorMap(map)
       setHighlightedDates(Object.keys(map))
     })
-  }, [mode, calendarObservationType, calendarSymptomType, calendarYear, calendarMonth])
+  }, [mode, calendarObservationTypes, calendarSymptomTypes, calendarYear, calendarMonth])
 
   return (
     <div className="App">
@@ -150,10 +151,10 @@ function App() {
           dateColorMap={dateColorMap}
           selectedDate={selectedDate}
           onDateSelect={setSelectedDate}
-          observationType={calendarObservationType || undefined}
-          symptomType={calendarSymptomType || undefined}
-          onObservationTypeChange={t => setCalendarObservationType(t)}
-          onSymptomTypeChange={t => setCalendarSymptomType(t)}
+          observationTypes={calendarObservationTypes}
+          symptomTypes={calendarSymptomTypes}
+          onObservationTypesChange={setCalendarObservationTypes}
+          onSymptomTypesChange={setCalendarSymptomTypes}
           // Pass month/year state and setters to calendar for navigation
           calendarYear={calendarYear}
           calendarMonth={calendarMonth}

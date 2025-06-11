@@ -44,8 +44,8 @@ export async function getData(query: Partial<Observation> | Partial<Symptom>) {
 export async function getAllData(params: {
   startDate?: string;
   endDate?: string;
-  observationType?: string;
-  symptomType?: string;
+  observationType?: string | string[];
+  symptomType?: string | string[];
 }): Promise<WellBeingData[]> {
   const response = await fetch('http://localhost:5000/command/get-all', {
     method: 'POST',
@@ -53,8 +53,16 @@ export async function getAllData(params: {
     body: JSON.stringify({
       StartDate: params.startDate ?? null,
       EndDate: params.endDate ?? null,
-      ObservationType: params.observationType ?? null,
-      SymptomType: params.symptomType ?? null,
+      ObservationType: Array.isArray(params.observationType)
+        ? params.observationType
+        : params.observationType
+        ? [params.observationType]
+        : [],
+      SymptomType: Array.isArray(params.symptomType)
+        ? params.symptomType
+        : params.symptomType
+        ? [params.symptomType]
+        : [],
     })
   });
   if (!response.ok) throw new Error('Failed to get all data');

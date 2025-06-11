@@ -8,7 +8,7 @@ namespace RestApiInterface.Commands
     public record GetAllDataCmd(
         DateOnly? StartDate,
         DateOnly? EndDate,
-        ObservationType? ObservationType,
-        SymptomType? SymptomType
+        IList<ObservationType> ObservationType,
+        IList<SymptomType> SymptomType
     );
 }

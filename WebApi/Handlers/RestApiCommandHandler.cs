@@ -21,17 +21,6 @@ namespace WebApi.Handlers
             await _repository.AddAsync(command.Data);
         }
 
-        public async Task<WellBeingData?> GetDataAsync(GetDataCmd command)
-        {
-            _logger.LogInformation("Retrieving data for command {command}", command);
-            if (command.ObservationType is ObservationType observationtype)
-                return await _repository.GetAsync(command.Date, observationtype);
-            if (command.SymptomType is SymptomType symptomType)
-                return await _repository.GetAsync(command.Date, symptomType);
-
-            return null;
-        }
-
         public async Task<IEnumerable<WellBeingData>> GetAllDataAsync(GetAllDataCmd command)
         {
             _logger.LogInformation("Retrieving all data for command {command}", command);

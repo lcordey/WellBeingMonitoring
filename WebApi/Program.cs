@@ -59,20 +59,6 @@ app.MapPost("/command", async ([FromBody] SetDataCmd command, IRestApiCommandHan
     return Results.Ok();
 }).WithName("PostSetDataCommand");
 
-// GET /command endpoint for getting data by date
-app.MapGet("/command", async ([FromBody] GetDataCmd command, IRestApiCommandHandler handler) =>
-{
-    var result = await handler.GetDataAsync(command);
-    return result is not null ? Results.Ok(result) : Results.NotFound();
-}).WithName("GetDataCommand");
-
-// POST /command/get endpoint for getting data by date
-app.MapPost("/command/get", async ([FromBody] GetDataCmd command, IRestApiCommandHandler handler) =>
-{
-    var result = await handler.GetDataAsync(command);
-    return result is not null ? Results.Ok(result) : Results.NotFound();
-}).WithName("PostGetDataCommand");
-
 // POST /command/get-all endpoint for getting all filtered data
 app.MapPost("/command/get-all", async ([FromBody] GetAllDataCmd command, IRestApiCommandHandler handler) =>
 {

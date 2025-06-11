@@ -10,12 +10,14 @@ export interface WellBeingCalendarProps {
   onDateSelect?: (date: string) => void;
   /** Optional filter for observation type */
   observationType?: ObservationType;
-  /** Optional filter for symptom type */
-  symptomType?: SymptomType;
+  /** Change to array for multiple selection */
+  observationTypes: ObservationType[];
+  symptomTypes: SymptomType[];
   /** Callback for observation type change */
   onObservationTypeChange?: (type: ObservationType) => void;
-  /** Callback for symptom type change */
-  onSymptomTypeChange?: (type: SymptomType) => void;
+  /** New callback for multiple selection */
+  onObservationTypesChange?: (types: ObservationType[]) => void;
+  onSymptomTypesChange?: (types: SymptomType[]) => void;
   calendarYear: number;
   calendarMonth: number; // 0-based
   setCalendarYear: (year: number) => void;
@@ -29,9 +31,11 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
   selectedDate,
   onDateSelect,
   observationType,
-  symptomType,
+  observationTypes,
+  symptomTypes,
   onObservationTypeChange,
-  onSymptomTypeChange,
+  onObservationTypesChange,
+  onSymptomTypesChange,
   calendarYear,
   calendarMonth,
   setCalendarYear,
@@ -62,9 +66,6 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
     const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
     calendarDays.push(dateStr)
   }
-
-  // Highlight logic
-  const isHighlighted = (date: string) => highlightedDates.includes(date)
 
   // Color logic for each date
   const getDateColor = (date: string) => {
@@ -109,6 +110,27 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
     'July', 'August', 'September', 'October', 'November', 'December'
   ]
 
+  // Multi-select observation checkboxes
+  const observationEnumOptions = getEnumOptions(ObservationType)
+  const handleObservationCheckbox = (type: ObservationType) => {
+    if (!onObservationTypesChange) return
+    if (observationTypes.includes(type)) {
+      onObservationTypesChange(observationTypes.filter(t => t !== type))
+    } else {
+      onObservationTypesChange([...observationTypes, type])
+    }
+  }
+  // Multi-select symptom checkboxes
+  const symptomEnumOptions = getEnumOptions(SymptomType)
+  const handleSymptomCheckbox = (type: SymptomType) => {
+    if (!onSymptomTypesChange) return
+    if (symptomTypes.includes(type)) {
+      onSymptomTypesChange(symptomTypes.filter(t => t !== type))
+    } else {
+      onSymptomTypesChange([...symptomTypes, type])
+    }
+  }
+
   return (
     <div style={{ maxWidth: 420, margin: '0 auto', marginBottom: 40, background: '#f8fafc', borderRadius: 16, boxShadow: '0 4px 24px rgba(100,108,255,0.10)', padding: 32, border: '1.5px solid #e0e7ff' }}>
       <h2 style={{ color: '#3b3b5c', marginBottom: 18, fontWeight: 700 }}>Calendar View</h2>
@@ -130,18 +152,32 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
         <button onClick={handleNextMonth} style={{ fontSize: 20, padding: '2px 10px' }}>{'>'}</button>
       </div>
       <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
-        <select value={observationType ?? ''} onChange={e => onObservationTypeChange?.(e.target.value as ObservationType)} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1.5px solid #c7d2fe', background: '#f1f5f9' }}>
-          <option value="">All Observations</option>
-          {Object.entries(getEnumOptions(ObservationType)).map(([key, val]) => (
-            <option key={key} value={key}>{val}</option>
+        {/* Multi-select observation checkboxes */}
+        <div style={{ flex: 2, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', background: '#f1f5f9', borderRadius: 8, border: '1.5px solid #c7d2fe', padding: 8 }}>
+          {Object.entries(observationEnumOptions).map(([key, val]) => (
+            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 500 }}>
+              <input
+                type="checkbox"
+                checked={observationTypes.includes(key as ObservationType)}
+                onChange={() => handleObservationCheckbox(key as ObservationType)}
+              />
+              {val}
+            </label>
           ))}
-        </select>
-        <select value={symptomType ?? ''} onChange={e => onSymptomTypeChange?.(e.target.value as SymptomType)} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1.5px solid #c7d2fe', background: '#f1f5f9' }}>
-          <option value="">All Symptoms</option>
-          {Object.entries(getEnumOptions(SymptomType)).map(([key, val]) => (
-            <option key={key} value={key}>{val}</option>
+        </div>
+        {/* Multi-select symptom checkboxes */}
+        <div style={{ flex: 2, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', background: '#f1f5f9', borderRadius: 8, border: '1.5px solid #c7d2fe', padding: 8 }}>
+          {Object.entries(symptomEnumOptions).map(([key, val]) => (
+            <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 500 }}>
+              <input
+                type="checkbox"
+                checked={symptomTypes.includes(key as SymptomType)}
+                onChange={() => handleSymptomCheckbox(key as SymptomType)}
+              />
+              {val}
+            </label>
           ))}
-        </select>
+        </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8, fontWeight: 600, color: '#6366f1' }}>
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d}>{d}</div>)}

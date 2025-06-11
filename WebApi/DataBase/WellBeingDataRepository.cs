@@ -82,19 +82,21 @@ namespace WebApi.DataBase
         public async Task<IEnumerable<WellBeingData>> GetAllAsync(
             DateOnly? startDate,
             DateOnly? endDate,
-            ObservationType? observationType,
-            SymptomType? symptomType)
+            IList<ObservationType> observationTypes,
+            IList<SymptomType> symptomTypes)
         {
-            // Retrieve all data from your data source (replace with your actual data retrieval logic)
             var allData = await GetAllDataFromDbAsync();
-
             var filtered = allData.Where(data =>
                 (!startDate.HasValue || data.Date >= startDate.Value) &&
                 (!endDate.HasValue || data.Date <= endDate.Value) &&
-                (observationType == null || (data is Observation o && o.ObservationType == observationType)) &&
-                (symptomType == null || (data is Symptom s && s.SymptomType == symptomType))
+                (
+                    (observationTypes == null || observationTypes.Count == 0) && (symptomTypes == null || symptomTypes.Count == 0)
+                    ||
+                    (observationTypes != null && observationTypes.Count > 0 && data is Observation o && observationTypes.Contains(o.ObservationType))
+                    ||
+                    (symptomTypes != null && symptomTypes.Count > 0 && data is Symptom s && symptomTypes.Contains(s.SymptomType))
+                )
             );
-
             return filtered.ToList();
         }
 

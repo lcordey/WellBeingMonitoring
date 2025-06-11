@@ -13,6 +13,6 @@ namespace WebApi.DataBase
         Task RemoveAsync(DateOnly date);
         Task<Observation?> GetAsync(DateOnly date, ObservationType type);
         Task<Symptom?> GetAsync(DateOnly date, SymptomType type);
-        Task<IEnumerable<WellBeingData>> GetAllAsync(DateOnly? startDate, DateOnly? endDate, ObservationType? observationType, SymptomType? symptomType);
+        Task<IEnumerable<WellBeingData>> GetAllAsync(DateOnly? startDate, DateOnly? endDate, IList<ObservationType> observationTypes, IList<SymptomType> symptomTypes);
     }
 }

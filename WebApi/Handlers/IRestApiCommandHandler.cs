@@ -8,7 +8,6 @@ namespace WebApi.Handlers
     /// </summary>
     public interface IRestApiCommandHandler
     {
-        Task<WellBeingData?> GetDataAsync(GetDataCmd command);
         Task SetDataAsync(SetDataCmd command);
         Task<IEnumerable<WellBeingData>> GetAllDataAsync(GetAllDataCmd command);
     }
