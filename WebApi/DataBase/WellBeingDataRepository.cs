@@ -17,64 +17,43 @@ namespace WebApi.DataBase
 
         public async Task AddAsync(WellBeingData data)
         {
-            var (type, table) = data switch
-            {
-                Observation observation => (observation.ObservationType.ToString(), "Observations"),
-                Symptom symptom => (symptom.SymptomType.ToString(), "Symptoms"),
-                _ => throw new ArgumentException("Unsupported WellBeingData type")
-            };
             var dict = new Dictionary<string, object>
             {
-                ["Date"] = data.Date,
-                ["Type"] = type,
-                ["Data"] = JsonSerializer.Serialize(data)
+                ["date"] = data.Date,
+                ["category"] = data.Category,
+                ["type"] = data.Type,
+                ["values_list"] = data.Values.ToArray()
             };
-            var filter = new Dictionary<string, object>
-            {
-                ["Date"] = data.Date,
-                ["Type"] = type
-            };
-            var existing = await _genericRepo.GetAsync(table, filter);
-            if (existing.Count > 0)
-                await _genericRepo.UpdateAsync(table, dict, filter);
-            else
-                await _genericRepo.AddAsync(table, dict);
+            await _genericRepo.AddAsync("entry_data", dict);
         }
 
-        public async Task RemoveAsync(DateOnly date)
-        {
-            var filter = new Dictionary<string, object> { ["Date"] = date };
-            await _genericRepo.RemoveAsync("WellBeingDataTable", filter);
-        }
-
-        public async Task<Observation?> GetAsync(DateOnly date, ObservationType type)
+        public async Task RemoveAsync(DateOnly date, string category, string type)
         {
             var filter = new Dictionary<string, object>
             {
-                ["Date"] = date,
-                ["Type"] = type.ToString()
+                ["date"] = date,
+                ["category"] = category,
+                ["type"] = type
             };
-            var results = await _genericRepo.GetAsync("Observations", filter);
-            if (results.Count > 0 && results[0] is object[] row && row.Length > 0)
-            {
-                var json = row[^1]?.ToString(); // Assume last column is Data
-                return json != null ? JsonSerializer.Deserialize<Observation>(json) : null;
-            }
-            return null;
+            await _genericRepo.RemoveAsync("entry_data", filter);
         }
 
-        public async Task<Symptom?> GetAsync(DateOnly date, SymptomType type)
+        public async Task<WellBeingData?> GetWellBeingDataAsync(DateOnly date, string category, string type)
         {
             var filter = new Dictionary<string, object>
             {
-                ["Date"] = date,
-                ["Type"] = type.ToString()
+                ["date"] = date,
+                ["category"] = category,
+                ["type"] = type
             };
-            var results = await _genericRepo.GetAsync("Symptoms", filter);
-            if (results.Count > 0 && results[0] is object[] row && row.Length > 0)
+            var results = await _genericRepo.GetAsync("entry_data", filter);
+            if (results.Count > 0 && results[0] is object[] row && row.Length >= 4)
             {
-                var json = row[^1]?.ToString(); // Assume last column is Data
-                return json != null ? JsonSerializer.Deserialize<Symptom>(json) : null;
+                var dateVal = (DateTime)row[0];
+                var categoryVal = row[1]?.ToString() ?? string.Empty;
+                var typeVal = row[2]?.ToString() ?? string.Empty;
+                var valuesList = row[3] as string[] ?? Array.Empty<string>();
+                return new WellBeingData(DateOnly.FromDateTime(dateVal), categoryVal, typeVal, valuesList.ToList());
             }
             return null;
         }
@@ -82,61 +61,117 @@ namespace WebApi.DataBase
         public async Task<IEnumerable<WellBeingData>> GetAllAsync(
             DateOnly? startDate,
             DateOnly? endDate,
-            IList<ObservationType> observationTypes,
-            IList<SymptomType> symptomTypes)
+            IList<(string Category, string Type)> dataTypes)
         {
             var allData = await GetAllDataFromDbAsync();
             var filtered = allData.Where(data =>
                 (!startDate.HasValue || data.Date >= startDate.Value) &&
                 (!endDate.HasValue || data.Date <= endDate.Value) &&
                 (
-                    (observationTypes == null || observationTypes.Count == 0) && (symptomTypes == null || symptomTypes.Count == 0)
-                    ||
-                    (observationTypes != null && observationTypes.Count > 0 && data is Observation o && observationTypes.Contains(o.ObservationType))
-                    ||
-                    (symptomTypes != null && symptomTypes.Count > 0 && data is Symptom s && symptomTypes.Contains(s.SymptomType))
+                    dataTypes == null || dataTypes.Count == 0 ||
+                    dataTypes.Any(dt => string.Equals(data.Category, dt.Category, StringComparison.OrdinalIgnoreCase) &&
+                                        string.Equals(data.Type, dt.Type, StringComparison.OrdinalIgnoreCase))
                 )
             );
             return filtered.ToList();
         }
-
+        
         private async Task<IEnumerable<WellBeingData>> GetAllDataFromDbAsync()
         {
             var allData = new List<WellBeingData>();
-
-            // Get all observations
-            var observations = await _genericRepo.GetAllAsync("Observations");
-            foreach (var row in observations)
+            var rows = await _genericRepo.GetAllAsync("entry_data");
+            foreach (var row in rows)
             {
-                if (row is object[] arr && arr.Length > 0)
+                if (row is object[] arr && arr.Length >= 4)
                 {
-                    var json = arr[^1]?.ToString(); // Assume last column is Data
-                    if (!string.IsNullOrEmpty(json))
-                    {
-                        var obs = JsonSerializer.Deserialize<Observation>(json);
-                        if (obs != null)
-                            allData.Add(obs);
-                    }
+                    var dateVal = (DateTime)arr[0];
+                    var category = arr[1]?.ToString() ?? string.Empty;
+                    var type = arr[2]?.ToString() ?? string.Empty;
+                    var valuesList = arr[3] as string[] ?? Array.Empty<string>();
+                    allData.Add(new WellBeingData(DateOnly.FromDateTime(dateVal), category, type, valuesList.ToList()));
                 }
             }
-
-            // Get all symptoms
-            var symptoms = await _genericRepo.GetAllAsync("Symptoms");
-            foreach (var row in symptoms)
-            {
-                if (row is object[] arr && arr.Length > 0)
-                {
-                    var json = arr[^1]?.ToString(); // Assume last column is Data
-                    if (!string.IsNullOrEmpty(json))
-                    {
-                        var sym = JsonSerializer.Deserialize<Symptom>(json);
-                        if (sym != null)
-                            allData.Add(sym);
-                    }
-                }
-            }
-
             return allData;
+        }
+
+        // --- Observation Type/Value Management ---
+        public async Task CreateWellBeingTypeAsync(string category, string type, bool allowMultipleSelection)
+        {
+            var dict = new Dictionary<string, object>
+            {
+                ["type"] = type,
+                ["category"] = "observation",
+                ["allows_multiple"] = allowMultipleSelection
+            };
+            await _genericRepo.AddAsync("entry_definitions", dict);
+        }
+
+        public async Task DeleteWellBeingTypeAsync(string category, string type)
+        {
+            var filter = new Dictionary<string, object>
+            {
+                ["type"] = type,
+                ["category"] = "observation"
+            };
+            await _genericRepo.RemoveAsync("entry_definitions", filter);
+        }
+
+        public async Task AddWellBeingValueAsync(string type, string value, bool notable)
+        {
+            var dict = new Dictionary<string, object>
+            {
+                ["parent_type"] = type,
+                ["value"] = value,
+                ["is_notable"] = notable
+            };
+            await _genericRepo.AddAsync("entry_values", dict);
+        }
+
+        public async Task DeleteWellBeingValueAsync(string type, string value)
+        {
+            var filter = new Dictionary<string, object>
+            {
+                ["parent_type"] = type,
+                ["value"] = value
+            };
+            await _genericRepo.RemoveAsync("entry_values", filter);
+        }
+
+        public async Task<WellBeingValuesDefinition> GetWellBeingValuesAsync(string type)
+        {
+            var filter = new Dictionary<string, object> { ["parent_type"] = type };
+            var rows = await _genericRepo.GetAsync("entry_values", filter);
+            var values = new List<(string Value, bool Noticeable)>();
+            foreach (var row in rows)
+            {
+                if (row is object[] arr && arr.Length >= 4)
+                {
+                    var value = arr[2]?.ToString();
+                    var notable = Convert.ToBoolean(arr[3]);
+                    if (value != null)
+                        values.Add((value, notable));
+                }
+            }
+            return new WellBeingValuesDefinition(values);
+        }
+
+        public async Task<List<WellBeingDefinition>> GetWellBeingDefinitionAsync(string category)
+        {
+            var filter = new Dictionary<string, object> { ["category"] = category };
+            var rows = await _genericRepo.GetAsync("entry_definitions", filter);
+            var result = new List<WellBeingDefinition>();
+            foreach (var row in rows)
+            {
+                if (row is object[] arr && arr.Length >= 3)
+                {
+                    var type = arr[0]?.ToString();
+                    var cat = arr[1]?.ToString();
+                    var allowMultiple = Convert.ToBoolean(arr[2]);
+                    var valuesDef = await GetWellBeingValuesAsync(type!);
+                    result.Add(new WellBeingDefinition(cat!, type!, valuesDef, allowMultiple));
+                }
+            }
+            return result;
         }
     }
 }
