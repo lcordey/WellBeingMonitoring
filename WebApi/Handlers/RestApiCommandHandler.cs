@@ -16,7 +16,7 @@ namespace WebApi.Handlers
             _logger.LogInformation("RestApiCommandHandler initialized");
         }
 
-        public async Task SetWellBeingDataAsync(SetWellBeingDataCmd command)
+        public async Task AddWellBeingDataAsync(AddWellBeingDataCmd command)
         {
             _logger.LogInformation("SetWellBeingDataAsync called with command: {@Command}", command);
             await _repository.AddAsync(command.Data);

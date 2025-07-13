@@ -5,6 +5,7 @@ import './App.css'
 import { useState, useEffect } from 'react'
 import { WellBeingCalendar } from './components/WellBeingCalendar'
 import { getData, getAllData } from './api'
+import { ApiTestPage } from './components/ApiTestPage'
 
 // Observation API service instance
 const observationApi = new ApiService<any, any>(
@@ -70,6 +71,7 @@ function App() {
   const [highlightedDates, setHighlightedDates] = useState<string[]>([])
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
   const [dateColorMap, setDateColorMap] = useState<Record<string, 'observation' | 'symptom' | 'both'>>({})
+  const [showApiTest, setShowApiTest] = useState(false)
 
   // Calendar month/year state for filtering
   const today = new Date()
@@ -126,8 +128,16 @@ function App() {
         >
           Calendar
         </button>
+        <button
+          onClick={() => setShowApiTest((v) => !v)}
+          style={{ marginLeft: 8, fontWeight: showApiTest ? 'bold' : 'normal' }}
+        >
+          API Test
+        </button>
       </div>
-      {mode === 'observation' ? (
+      {showApiTest ? (
+        <ApiTestPage />
+      ) : mode === 'observation' ? (
         <WellBeingForm
           label="Observation"
           typeOptions={getEnumOptions(ObservationType)}

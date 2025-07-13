@@ -8,9 +8,9 @@ namespace WebApi.Handlers
     /// </summary>
     public interface IRestApiCommandHandler
     {
-        Task SetWellBeingDataAsync(SetWellBeingDataCmd command);
+        Task AddWellBeingDataAsync(AddWellBeingDataCmd command);
         Task<IEnumerable<WellBeingData>> GetAllWellBeingDataAsync(GetAllWellBeingDataCmd command);
-        
+
         // Observation type/value management
         Task CreateWellBeingTypeAsync(CreateWellBeingTypeCmd command);
         Task DeleteWellBeingTypeAsync(DeleteWellBeingTypeCmd command);

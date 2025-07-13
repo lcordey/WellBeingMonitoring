@@ -54,10 +54,10 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowFrontend");
 
 // POST /command endpoint for setting data
-app.MapPost("/command/setWBType", async ([FromBody] SetWellBeingDataCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
+app.MapPost("/command/addWBData", async ([FromBody] AddWellBeingDataCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
     logger.LogInformation("Received SetWellBeingDataCmd: {@Command}", command);
-    await handler.SetWellBeingDataAsync(command);
+    await handler.AddWellBeingDataAsync(command);
     return Results.Ok();
 }).WithName("PostSetDataCommand");
 
