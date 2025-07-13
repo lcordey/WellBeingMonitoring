@@ -20,8 +20,9 @@ builder.Services.AddSingleton<IWellBeingDataRepository, WellBeingDataRepository>
 builder.Services.AddSingleton<IGenericPostgresRepository>(sp =>
 {
     var configuration = sp.GetRequiredService<IConfiguration>();
+    var logger = sp.GetRequiredService<ILogger<GenericPostgresRepository>>();
     var connectionString = configuration.GetConnectionString("WellBeingDatabase");
-    return new GenericPostgresRepository(connectionString);
+    return new GenericPostgresRepository(connectionString, logger);
 });
 
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
@@ -53,59 +54,71 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowFrontend");
 
 // POST /command endpoint for setting data
-app.MapPost("/command", async ([FromBody] SetWellBeingDataCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command/setWBType", async ([FromBody] SetWellBeingDataCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Received SetWellBeingDataCmd: {@Command}", command);
     await handler.SetWellBeingDataAsync(command);
     return Results.Ok();
 }).WithName("PostSetDataCommand");
 
 // POST /command/get-all endpoint for getting all filtered data
-app.MapPost("/command/get-all", async ([FromBody] GetAllWellBeingDataCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command/getAll", async ([FromBody] GetAllWellBeingDataCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Received GetAllWellBeingDataCmd: {@Command}", command);
     var result = await handler.GetAllWellBeingDataAsync(command);
     return Results.Ok(result);
 }).WithName("PostGetAllDataCommand");
 
 // POST /command/create-type endpoint
-app.MapPost("/command/create-type", async ([FromBody] CreateWellBeingTypeCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command/createWBType", async ([FromBody] CreateWellBeingTypeCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Received CreateWellBeingTypeCmd: {@Command}", command);
     await handler.CreateWellBeingTypeAsync(command);
     return Results.Ok();
 }).WithName("PostCreateWellBeingTypeCommand");
 
 // POST /command/delete-type endpoint
-app.MapPost("/command/delete-type", async ([FromBody] DeleteWellBeingTypeCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command/deleteWBType", async ([FromBody] DeleteWellBeingTypeCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Received DeleteWellBeingTypeCmd: {@Command}", command);
     await handler.DeleteWellBeingTypeAsync(command);
     return Results.Ok();
 }).WithName("PostDeleteWellBeingTypeCommand");
 
 // POST /command/add-value endpoint
-app.MapPost("/command/add-value", async ([FromBody] AddWellBeingValueCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command/addWBValue", async ([FromBody] AddWellBeingValueCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Received AddWellBeingValueCmd: {@Command}", command);
     await handler.AddWellBeingValueAsync(command);
     return Results.Ok();
 }).WithName("PostAddWellBeingValueCommand");
 
 // POST /command/delete-value endpoint
-app.MapPost("/command/delete-value", async ([FromBody] DeleteWellBeingValueCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command/deleteWBValue", async ([FromBody] DeleteWellBeingValueCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Received DeleteWellBeingValueCmd: {@Command}", command);
     await handler.DeleteWellBeingValueAsync(command);
     return Results.Ok();
 }).WithName("PostDeleteWellBeingValueCommand");
 
 // POST /command/get-definitions endpoint
-app.MapPost("/command/get-definitions", async ([FromBody] GetWellBeingDefinitionsCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command/getWBDefinitions", async ([FromBody] GetWellBeingDefinitionsCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Received GetWellBeingDefinitionsCmd: {@Command}", command);
     var result = await handler.GetWellBeingDefinitionAsync(command);
     return Results.Ok(result);
 }).WithName("PostGetWellBeingDefinitionsCommand");
 
 // POST /command/get-values endpoint
-app.MapPost("/command/get-values", async ([FromBody] GetWellBeingValuesCmd command, IRestApiCommandHandler handler) =>
+app.MapPost("/command/getWBValues", async ([FromBody] GetWellBeingValuesCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Received GetWellBeingValuesCmd: {@Command}", command);
     var result = await handler.GetWellBeingValuesAsync(command);
-    return Results.Ok(result);
+    logger.LogInformation("GetWellBeingValuesCmd completed: {Result}", result);
+    return result;
 }).WithName("PostGetWellBeingValuesCommand");
+
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("Application started at {Time}", DateTime.UtcNow);
 
 app.Run();

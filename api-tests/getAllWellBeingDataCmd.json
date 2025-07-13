@@ -1,0 +1,9 @@
+{
+  "StartDate": "2025-06-01",
+  "EndDate": "2025-06-15",
+  "DataTypes": [
+    { "Category": "Mood", "Type": "Happiness" },
+    { "Category": "Activity", "Type": "Exercise" },
+    { "Category": "Observation", "Type": "eau" }
+  ]
+}
