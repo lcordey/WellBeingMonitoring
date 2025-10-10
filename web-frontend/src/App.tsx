@@ -1,243 +1,165 @@
-import { WellBeingForm } from './components/WellBeingForm'
-import { ApiService } from './services/ApiService'
-import { ObservationType, SymptomType } from './types/enums'
-import './App.css'
-import { useState, useEffect, useCallback } from 'react'
-import { WellBeingCalendar } from './components/WellBeingCalendar'
-import { getAllData } from './api'
-import { ApiTestPage } from './components/ApiTestPage'
-import { WellBeingAdminPage } from './components/WellBeingAdminPage'
-import { WellBeingDashboard } from './components/WellBeingDashboard'
-import { WellBeingDataExplorer } from './components/WellBeingDataExplorer'
-import { SelectedDateDetails } from './components/SelectedDateDetails'
-import type { WellBeingEntry } from './api'
+import './App.css';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { WellBeingDashboard } from './components/WellBeingDashboard';
+import { WellBeingDataExplorer } from './components/WellBeingDataExplorer';
+import { WellBeingCalendar } from './components/WellBeingCalendar';
+import { SelectedDateDetails } from './components/SelectedDateDetails';
+import { WellBeingAdminPage } from './components/WellBeingAdminPage';
+import { WellBeingDataEntry } from './components/WellBeingDataEntry';
+import { getAllWellBeingData, type WellBeingEntry } from './api';
 
-// Observation API service instance
-const observationApi = new ApiService<any, any>(
-  'http://localhost:5000/command',
-  'http://localhost:5000/command/get'
-)
-// Symptom API service instance
-const symptomApi = new ApiService<any, any>(
-  'http://localhost:5000/command',
-  'http://localhost:5000/command/get'
-)
+const VIEW_OPTIONS = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'explorer', label: 'Explorer' },
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'entry', label: 'Record data' },
+  { key: 'definitions', label: 'Definitions' },
+] as const;
 
-// Helper to get enum options as { key: value }
-function getEnumOptions<T extends object>(e: T): Record<string, string> {
-  // Only include string values (filter out numeric keys from transpiled enums)
-  return Object.values(e)
-    .filter((val) => typeof val === 'string')
-    .reduce((acc, val) => {
-      acc[val as string] = val as string
-      return acc
-    }, {} as Record<string, string>)
-}
+type ViewMode = (typeof VIEW_OPTIONS)[number]['key'];
 
-function buildObservationData(date: string, value: string, type: ObservationType) {
-  return {
-    dataType: 'observation',
-    observationType: type,
-    date,
-    value: value ? Number(value) : null
-  }
-}
+const colorPalette = ['#2563eb', '#dc2626', '#0ea5e9', '#f59e0b', '#10b981', '#8b5cf6', '#f97316', '#9333ea'];
 
-function buildObservationQuery(date: string, type: ObservationType) {
-  return {
-    dataType: 'observation',
-    observationType: type,
-    date
-  }
-}
-
-function buildSymptomData(date: string, value: string, type: SymptomType) {
-  return {
-    dataType: 'symptom',
-    symptomType: type,
-    date,
-    value: value ? Number(value) : null
-  }
-}
-
-function buildSymptomQuery(date: string, type: SymptomType) {
-  return {
-    dataType: 'symptom',
-    symptomType: type,
-    date
-  }
-}
+const normaliseCategory = (value: string) => value.trim().toLowerCase();
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
 
 function App() {
-  const [mode, setMode] = useState<'observation' | 'symptom' | 'calendar' | 'dashboard' | 'explorer'>('observation')
-  const [calendarObservationTypes, setCalendarObservationTypes] = useState<ObservationType[]>([])
-  const [calendarSymptomTypes, setCalendarSymptomTypes] = useState<SymptomType[]>([])
-  const [selectedDate, setSelectedDate] = useState<string | undefined>()
-  const [dateColorMap, setDateColorMap] = useState<Record<string, 'observation' | 'symptom' | 'both'>>({})
-  const [showApiTest, setShowApiTest] = useState(false)
-  const [showAdmin, setShowAdmin] = useState(false)
-  const [selectedDateEntries, setSelectedDateEntries] = useState<WellBeingEntry[]>([])
-  const [selectedDateLoading, setSelectedDateLoading] = useState(false)
-  const [selectedDateError, setSelectedDateError] = useState<string | null>(null)
+  const today = new Date();
+  const [mode, setMode] = useState<ViewMode>('dashboard');
+  const [selectedDate, setSelectedDate] = useState<string | undefined>();
+  const [selectedDateEntries, setSelectedDateEntries] = useState<WellBeingEntry[]>([]);
+  const [selectedDateLoading, setSelectedDateLoading] = useState(false);
+  const [selectedDateError, setSelectedDateError] = useState<string | null>(null);
+  const [calendarYear, setCalendarYear] = useState(today.getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(today.getMonth());
+  const [dateCategoriesMap, setDateCategoriesMap] = useState<Record<string, string[]>>({});
+  const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({
+    observation: 'observation',
+    symptom: 'symptom',
+  });
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
-  // Calendar month/year state for filtering
-  const today = new Date()
-  const [calendarYear, setCalendarYear] = useState(today.getFullYear())
-  const [calendarMonth, setCalendarMonth] = useState(today.getMonth()) // 0-based
+  const categoryColors = useMemo(() => {
+    const keys = Object.keys(categoryLabels).sort();
+    const map: Record<string, string> = {};
+    keys.forEach((key, index) => {
+      map[key] = colorPalette[index % colorPalette.length];
+    });
+    return map;
+  }, [categoryLabels]);
 
   const refreshSelectedDateEntries = useCallback(() => {
-    if (!selectedDate || mode !== 'calendar') return
-    setSelectedDateLoading(true)
-    setSelectedDateError(null)
-    getAllData({
-      startDate: selectedDate,
-      endDate: selectedDate,
-      observationType: calendarObservationTypes.length ? calendarObservationTypes : undefined,
-      symptomType: calendarSymptomTypes.length ? calendarSymptomTypes : undefined
-    })
+    if (!selectedDate) return;
+    setSelectedDateLoading(true);
+    setSelectedDateError(null);
+    getAllWellBeingData({ startDate: selectedDate, endDate: selectedDate })
       .then((data) => {
-        setSelectedDateEntries(data)
+        setSelectedDateEntries(data);
       })
-      .catch((error: any) => {
-        setSelectedDateError(error.message ?? 'Failed to load data for the selected date.')
-        setSelectedDateEntries([])
+      .catch((error: unknown) => {
+        setSelectedDateEntries([]);
+        setSelectedDateError(
+          getErrorMessage(error, 'Failed to load data for the selected date.')
+        );
       })
       .finally(() => {
-        setSelectedDateLoading(false)
+        setSelectedDateLoading(false);
+      });
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (mode !== 'calendar') return;
+    const startDate = new Date(calendarYear, calendarMonth, 1);
+    const endDate = new Date(calendarYear, calendarMonth + 1, 0);
+    const startDateStr = startDate.toISOString().slice(0, 10);
+    const endDateStr = endDate.toISOString().slice(0, 10);
+
+    setCalendarLoading(true);
+    setCalendarError(null);
+    getAllWellBeingData({ startDate: startDateStr, endDate: endDateStr })
+      .then((data) => {
+        const map: Record<string, string[]> = {};
+        const labelsUpdate: Record<string, string> = {};
+        data.forEach((entry) => {
+          const dateKey = entry.date.slice(0, 10);
+          const categoryKey = normaliseCategory(entry.category);
+          labelsUpdate[categoryKey] = entry.category;
+          if (!map[dateKey]) {
+            map[dateKey] = [];
+          }
+          if (!map[dateKey].includes(categoryKey)) {
+            map[dateKey].push(categoryKey);
+          }
+        });
+        setDateCategoriesMap(map);
+        setCategoryLabels((prev) => ({ ...prev, ...labelsUpdate }));
       })
-  }, [selectedDate, calendarObservationTypes, calendarSymptomTypes, mode])
-
-  // Fetch all data for calendar view using new backend endpoint
-  useEffect(() => {
-    if (mode !== 'calendar') return
-    // Calculate start and end date for the current calendar month
-    const startDate = new Date(calendarYear, calendarMonth, 1)
-    const endDate = new Date(calendarYear, calendarMonth + 1, 0)
-    const startDateStr = startDate.toISOString().slice(0, 10)
-    const endDateStr = endDate.toISOString().slice(0, 10)
-    getAllData({
-      startDate: startDateStr,
-      endDate: endDateStr,
-      observationType: calendarObservationTypes,
-      symptomType: calendarSymptomTypes
-    }).then((data) => {
-      // Build a map: date -> type(s)
-      const map: Record<string, 'observation' | 'symptom' | 'both'> = {}
-      for (const d of data) {
-        if (d.dataType === 'observation') {
-          map[d.date] = map[d.date] === 'symptom' ? 'both' : 'observation'
-        } else if (d.dataType === 'symptom') {
-          map[d.date] = map[d.date] === 'observation' ? 'both' : 'symptom'
-        }
-      }
-      setDateColorMap(map)
-    })
-  }, [mode, calendarObservationTypes, calendarSymptomTypes, calendarYear, calendarMonth])
+      .catch((error: unknown) => {
+        setDateCategoriesMap({});
+        setCalendarError(getErrorMessage(error, 'Unable to load calendar data.'));
+      })
+      .finally(() => {
+        setCalendarLoading(false);
+      });
+  }, [mode, calendarYear, calendarMonth]);
 
   useEffect(() => {
-    refreshSelectedDateEntries()
-  }, [refreshSelectedDateEntries])
+    if (mode === 'calendar' && selectedDate) {
+      refreshSelectedDateEntries();
+    }
+  }, [mode, selectedDate, refreshSelectedDateEntries]);
 
   return (
     <div className="App">
-      <h1>Well-Being Data</h1>
+      <h1>Well-being data</h1>
       <div className="App__view-switcher">
-        <button
-          onClick={() => setMode('observation')}
-          className={`App__view-button${mode === 'observation' ? ' App__view-button--active' : ''}`}
-        >
-          Observation
-        </button>
-        <button
-          onClick={() => setMode('symptom')}
-          className={`App__view-button${mode === 'symptom' ? ' App__view-button--active' : ''}`}
-        >
-          Symptom
-        </button>
-        <button
-          onClick={() => setMode('calendar')}
-          className={`App__view-button${mode === 'calendar' ? ' App__view-button--active' : ''}`}
-        >
-          Calendar
-        </button>
-        <button
-          onClick={() => setMode('dashboard')}
-          className={`App__view-button${mode === 'dashboard' ? ' App__view-button--active' : ''}`}
-        >
-          Dashboard
-        </button>
-        <button
-          onClick={() => setMode('explorer')}
-          className={`App__view-button${mode === 'explorer' ? ' App__view-button--active' : ''}`}
-        >
-          Explorer
-        </button>
-        <button
-          onClick={() => setShowApiTest((v) => !v)}
-          className={`App__view-button App__view-button--outline${showApiTest ? ' App__view-button--active' : ''}`}
-        >
-          API Test
-        </button>
-        <button
-          onClick={() => setShowAdmin((v) => !v)}
-          className={`App__view-button App__view-button--outline${showAdmin ? ' App__view-button--active' : ''}`}
-        >
-          Admin
-        </button>
+        {VIEW_OPTIONS.map((option) => (
+          <button
+            key={option.key}
+            onClick={() => setMode(option.key)}
+            className={`App__view-button${mode === option.key ? ' App__view-button--active' : ''}`}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
-      {showAdmin ? (
-        <WellBeingAdminPage />
-      ) : showApiTest ? (
-        <ApiTestPage />
-      ) : mode === 'observation' ? (
-        <WellBeingForm
-          label="Observation"
-          typeOptions={getEnumOptions(ObservationType)}
-          apiService={observationApi}
-          initialType={ObservationType.Food}
-          buildData={buildObservationData}
-          buildQuery={buildObservationQuery}
-        />
-      ) : mode === 'symptom' ? (
-        <WellBeingForm
-          label="Symptom"
-          typeOptions={getEnumOptions(SymptomType)}
-          apiService={symptomApi}
-          initialType={SymptomType.Headache}
-          buildData={buildSymptomData}
-          buildQuery={buildSymptomQuery}
-        />
-      ) : mode === 'calendar' ? (
-        <WellBeingCalendar
-          dateColorMap={dateColorMap}
-          selectedDate={selectedDate}
-          onDateSelect={setSelectedDate}
-          observationTypes={calendarObservationTypes}
-          symptomTypes={calendarSymptomTypes}
-          onObservationTypesChange={setCalendarObservationTypes}
-          onSymptomTypesChange={setCalendarSymptomTypes}
-          // Pass month/year state and setters to calendar for navigation
-          calendarYear={calendarYear}
-          calendarMonth={calendarMonth}
-          setCalendarYear={setCalendarYear}
-          setCalendarMonth={setCalendarMonth}
-        />
-      ) : mode === 'dashboard' ? (
+
+      {mode === 'dashboard' ? (
         <WellBeingDashboard />
-      ) : (
+      ) : mode === 'explorer' ? (
         <WellBeingDataExplorer />
-      )}
-      {mode === 'calendar' && (
-        <SelectedDateDetails
-          date={selectedDate}
-          entries={selectedDateEntries}
-          isLoading={selectedDateLoading}
-          error={selectedDateError}
-          onRefresh={refreshSelectedDateEntries}
-        />
+      ) : mode === 'calendar' ? (
+        <>
+          <WellBeingCalendar
+            selectedDate={selectedDate}
+            onDateSelect={setSelectedDate}
+            calendarYear={calendarYear}
+            calendarMonth={calendarMonth}
+            setCalendarYear={setCalendarYear}
+            setCalendarMonth={setCalendarMonth}
+            dateCategoriesMap={dateCategoriesMap}
+            categoryLabels={categoryLabels}
+            categoryColors={categoryColors}
+          />
+          {calendarLoading && <p className="calendar__info">Loading calendar data…</p>}
+          {calendarError && <div className="calendar__error">{calendarError}</div>}
+          <SelectedDateDetails
+            date={selectedDate}
+            entries={selectedDateEntries}
+            isLoading={selectedDateLoading}
+            error={selectedDateError}
+            onRefresh={refreshSelectedDateEntries}
+          />
+        </>
+      ) : mode === 'entry' ? (
+        <WellBeingDataEntry />
+      ) : (
+        <WellBeingAdminPage />
       )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -1,16 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getAllData, type WellBeingEntry } from '../api';
-import { ObservationType, SymptomType } from '../types/enums';
-
-const getEnumValues = <T extends Record<string, string>>(enumeration: T) =>
-  Object.values(enumeration).filter((value): value is T[keyof T] => typeof value === 'string');
+import { getAllWellBeingData, type WellBeingEntry } from '../api';
 
 const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
+const toCategoryKey = (value: string) => value.trim().toLowerCase();
+const toTypeKey = (entry: WellBeingEntry) =>
+  `${toCategoryKey(entry.category)}|${entry.type.trim().toLowerCase()}`;
 
-const getNumericValue = (value: unknown) => {
-  const number = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(number) ? number : null;
-};
+const formatCategoryLabel = (value: string) =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
+interface ChipOption {
+  key: string;
+  label: string;
+}
 
 export const WellBeingDashboard: React.FC = () => {
   const [startDate, setStartDate] = useState(() => {
@@ -19,98 +24,139 @@ export const WellBeingDashboard: React.FC = () => {
     return toDateInputValue(date);
   });
   const [endDate, setEndDate] = useState(() => toDateInputValue(new Date()));
-  const [observationFilters, setObservationFilters] = useState<ObservationType[]>([]);
-  const [symptomFilters, setSymptomFilters] = useState<SymptomType[]>([]);
   const [entries, setEntries] = useState<WellBeingEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const observationOptions = useMemo(() => getEnumValues(ObservationType), []);
-  const symptomOptions = useMemo(() => getEnumValues(SymptomType), []);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getAllData({
+      const response = await getAllWellBeingData({
         startDate,
         endDate,
-        observationType: observationFilters.length ? observationFilters : undefined,
-        symptomType: symptomFilters.length ? symptomFilters : undefined,
       });
       setEntries(response);
-    } catch (err: any) {
-      setError(err.message ?? 'Unable to load data');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Unable to load data.'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    void fetchDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const observationEntries = useMemo(
-    () => entries.filter((entry) => entry.dataType === 'observation'),
-    [entries]
-  );
-  const symptomEntries = useMemo(
-    () => entries.filter((entry) => entry.dataType === 'symptom'),
-    [entries]
-  );
+  const categoryOptions = useMemo<ChipOption[]>(() => {
+    const map = new Map<string, string>();
+    entries.forEach((entry) => {
+      const key = toCategoryKey(entry.category);
+      if (!map.has(key)) {
+        map.set(key, entry.category);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [entries]);
 
-  const averageObservationValue = useMemo(() => {
-    const values = observationEntries
-      .map((entry) => getNumericValue(entry.value))
-      .filter((value): value is number => value !== null);
-    if (!values.length) return null;
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-  }, [observationEntries]);
+  const categoryLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    categoryOptions.forEach((option) => map.set(option.key, option.label));
+    return map;
+  }, [categoryOptions]);
 
-  const averageSymptomValue = useMemo(() => {
-    const values = symptomEntries
-      .map((entry) => getNumericValue(entry.value))
-      .filter((value): value is number => value !== null);
-    if (!values.length) return null;
-    return values.reduce((sum, value) => sum + value, 0) / values.length;
-  }, [symptomEntries]);
+  const typeOptions = useMemo<ChipOption[]>(() => {
+    const map = new Map<string, string>();
+    entries.forEach((entry) => {
+      const key = toTypeKey(entry);
+      if (!map.has(key)) {
+        map.set(key, `${entry.type} (${formatCategoryLabel(entry.category)})`);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([key, label]) => ({ key, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [entries]);
+
+  useEffect(() => {
+    setSelectedCategories((prev) =>
+      prev.filter((key) => categoryLabels.has(key))
+    );
+    setSelectedTypes((prev) => prev.filter((key) => typeOptions.some((option) => option.key === key)));
+  }, [categoryLabels, typeOptions]);
+
+  const filteredEntries = useMemo(() => {
+    return entries.filter((entry) => {
+      const categoryKey = toCategoryKey(entry.category);
+      const typeKey = toTypeKey(entry);
+      if (selectedCategories.length > 0 && !selectedCategories.includes(categoryKey)) {
+        return false;
+      }
+      if (selectedTypes.length > 0 && !selectedTypes.includes(typeKey)) {
+        return false;
+      }
+      return true;
+    });
+  }, [entries, selectedCategories, selectedTypes]);
+
+  const totalEntries = filteredEntries.length;
+  const uniqueCategoriesCount = useMemo(
+    () => new Set(filteredEntries.map((entry) => toCategoryKey(entry.category))).size,
+    [filteredEntries]
+  );
+  const uniqueTypesCount = useMemo(
+    () => new Set(filteredEntries.map((entry) => toTypeKey(entry))).size,
+    [filteredEntries]
+  );
+  const totalValuesRecorded = useMemo(
+    () => filteredEntries.reduce((sum, entry) => sum + entry.values.length, 0),
+    [filteredEntries]
+  );
+  const trackedDays = useMemo(
+    () => new Set(filteredEntries.map((entry) => entry.date)).size,
+    [filteredEntries]
+  );
 
   const timeline = useMemo(() => {
     const map = new Map<
       string,
       {
-        observationCount: number;
-        symptomCount: number;
+        total: number;
+        byCategory: Map<string, number>;
       }
     >();
 
-    for (const entry of entries) {
-      if (!map.has(entry.date)) {
-        map.set(entry.date, { observationCount: 0, symptomCount: 0 });
+    for (const entry of filteredEntries) {
+      const dateKey = entry.date;
+      const categoryKey = toCategoryKey(entry.category);
+      if (!map.has(dateKey)) {
+        map.set(dateKey, { total: 0, byCategory: new Map() });
       }
-      const bucket = map.get(entry.date)!;
-      if (entry.dataType === 'observation') {
-        bucket.observationCount += 1;
-      } else {
-        bucket.symptomCount += 1;
-      }
+      const bucket = map.get(dateKey)!;
+      bucket.total += 1;
+      const current = bucket.byCategory.get(categoryKey) ?? 0;
+      bucket.byCategory.set(categoryKey, current + 1);
     }
 
     return Array.from(map.entries())
       .map(([date, bucket]) => ({ date, ...bucket }))
       .sort((a, b) => (a.date < b.date ? -1 : 1));
-  }, [entries]);
+  }, [filteredEntries]);
 
-  const toggleObservationFilter = (type: ObservationType) => {
-    setObservationFilters((prev) =>
-      prev.includes(type) ? prev.filter((value) => value !== type) : [...prev, type]
+  const toggleCategory = (key: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(key) ? prev.filter((value) => value !== key) : [...prev, key]
     );
   };
 
-  const toggleSymptomFilter = (type: SymptomType) => {
-    setSymptomFilters((prev) =>
-      prev.includes(type) ? prev.filter((value) => value !== type) : [...prev, type]
+  const toggleType = (key: string) => {
+    setSelectedTypes((prev) =>
+      prev.includes(key) ? prev.filter((value) => value !== key) : [...prev, key]
     );
   };
 
@@ -118,9 +164,9 @@ export const WellBeingDashboard: React.FC = () => {
     <div className="dashboard">
       <div className="dashboard__header">
         <div>
-          <h2>Well-Being Dashboard</h2>
+          <h2>Well-being dashboard</h2>
           <p className="dashboard__subtitle">
-            Overview of the collected observations and symptoms in the selected period.
+            Inspect activity for the selected period and focus on the categories that matter most.
           </p>
         </div>
         <button className="dashboard__refresh" onClick={fetchDashboardData} disabled={loading}>
@@ -138,36 +184,36 @@ export const WellBeingDashboard: React.FC = () => {
           <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
         </div>
         <div>
-          <label>Observation filters</label>
+          <label>Categories</label>
           <div className="dashboard__chips">
-            {observationOptions.map((type) => (
+            {categoryOptions.map((option) => (
               <button
-                key={type}
+                key={option.key}
                 type="button"
-                onClick={() => toggleObservationFilter(type)}
-                className={`dashboard__chip ${observationFilters.includes(type) ? 'dashboard__chip--active' : ''}`}
+                onClick={() => toggleCategory(option.key)}
+                className={`dashboard__chip ${selectedCategories.includes(option.key) ? 'dashboard__chip--active' : ''}`}
               >
-                {type}
+                {formatCategoryLabel(option.label)}
               </button>
             ))}
           </div>
-          <small>Empty selection means “all observations”.</small>
+          <small>Leave empty to include every category.</small>
         </div>
         <div>
-          <label>Symptom filters</label>
+          <label>Types</label>
           <div className="dashboard__chips">
-            {symptomOptions.map((type) => (
+            {typeOptions.map((option) => (
               <button
-                key={type}
+                key={option.key}
                 type="button"
-                onClick={() => toggleSymptomFilter(type)}
-                className={`dashboard__chip ${symptomFilters.includes(type) ? 'dashboard__chip--active' : ''}`}
+                onClick={() => toggleType(option.key)}
+                className={`dashboard__chip ${selectedTypes.includes(option.key) ? 'dashboard__chip--active' : ''}`}
               >
-                {type}
+                {option.label}
               </button>
             ))}
           </div>
-          <small>Empty selection means “all symptoms”.</small>
+          <small>Combine category and type filters for granular insights.</small>
         </div>
       </div>
 
@@ -176,32 +222,28 @@ export const WellBeingDashboard: React.FC = () => {
       <div className="dashboard__cards">
         <div className="dashboard__card">
           <span className="dashboard__card-label">Total entries</span>
-          <strong className="dashboard__card-value">{entries.length}</strong>
+          <strong className="dashboard__card-value">{totalEntries}</strong>
         </div>
         <div className="dashboard__card">
-          <span className="dashboard__card-label">Observations</span>
-          <strong className="dashboard__card-value">{observationEntries.length}</strong>
+          <span className="dashboard__card-label">Categories tracked</span>
+          <strong className="dashboard__card-value">{uniqueCategoriesCount}</strong>
         </div>
         <div className="dashboard__card">
-          <span className="dashboard__card-label">Symptoms</span>
-          <strong className="dashboard__card-value">{symptomEntries.length}</strong>
+          <span className="dashboard__card-label">Types represented</span>
+          <strong className="dashboard__card-value">{uniqueTypesCount}</strong>
         </div>
         <div className="dashboard__card">
-          <span className="dashboard__card-label">Average observation value</span>
-          <strong className="dashboard__card-value">
-            {averageObservationValue === null ? 'N/A' : averageObservationValue.toFixed(1)}
-          </strong>
+          <span className="dashboard__card-label">Values recorded</span>
+          <strong className="dashboard__card-value">{totalValuesRecorded}</strong>
         </div>
         <div className="dashboard__card">
-          <span className="dashboard__card-label">Average symptom value</span>
-          <strong className="dashboard__card-value">
-            {averageSymptomValue === null ? 'N/A' : averageSymptomValue.toFixed(1)}
-          </strong>
+          <span className="dashboard__card-label">Days covered</span>
+          <strong className="dashboard__card-value">{trackedDays}</strong>
         </div>
       </div>
 
       <section className="dashboard__section">
-        <h3>Daily activity</h3>
+        <h3>Daily summary</h3>
         {timeline.length === 0 ? (
           <p>No data available for the selected period.</p>
         ) : (
@@ -209,16 +251,22 @@ export const WellBeingDashboard: React.FC = () => {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Observations</th>
-                <th>Symptoms</th>
+                <th>Total entries</th>
+                <th>Breakdown</th>
               </tr>
             </thead>
             <tbody>
               {timeline.map((row) => (
                 <tr key={row.date}>
                   <td>{new Date(row.date).toLocaleDateString()}</td>
-                  <td>{row.observationCount}</td>
-                  <td>{row.symptomCount}</td>
+                  <td>{row.total}</td>
+                  <td>
+                    {Array.from(row.byCategory.entries())
+                      .map(([categoryKey, count]) =>
+                        `${formatCategoryLabel(categoryLabels.get(categoryKey) ?? categoryKey)}: ${count}`
+                      )
+                      .join(', ')}
+                  </td>
                 </tr>
               ))}
             </tbody>
