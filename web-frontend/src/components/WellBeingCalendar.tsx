@@ -2,19 +2,13 @@ import React from 'react'
 import { ObservationType, SymptomType } from '../types/enums'
 
 export interface WellBeingCalendarProps {
-  /** Dates to highlight, e.g. ['2025-06-01', ...] */
-  highlightedDates: string[];
   /** Currently selected date (optional) */
   selectedDate?: string;
   /** Callback when a date is selected */
   onDateSelect?: (date: string) => void;
-  /** Optional filter for observation type */
-  observationType?: ObservationType;
   /** Change to array for multiple selection */
   observationTypes: ObservationType[];
   symptomTypes: SymptomType[];
-  /** Callback for observation type change */
-  onObservationTypeChange?: (type: ObservationType) => void;
   /** New callback for multiple selection */
   onObservationTypesChange?: (types: ObservationType[]) => void;
   onSymptomTypesChange?: (types: SymptomType[]) => void;
@@ -26,14 +20,11 @@ export interface WellBeingCalendarProps {
 }
 
 export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
-  highlightedDates,
   dateColorMap,
   selectedDate,
   onDateSelect,
-  observationType,
   observationTypes,
   symptomTypes,
-  onObservationTypeChange,
   onObservationTypesChange,
   onSymptomTypesChange,
   calendarYear,
@@ -50,9 +41,6 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
         return acc
       }, {} as Record<string, string>)
   }
-
-  // Calendar state for month navigation
-  const today = new Date()
 
   const firstDay = new Date(calendarYear, calendarMonth, 1)
   const lastDay = new Date(calendarYear, calendarMonth + 1, 0)

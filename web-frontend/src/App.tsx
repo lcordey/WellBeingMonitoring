@@ -2,11 +2,15 @@ import { WellBeingForm } from './components/WellBeingForm'
 import { ApiService } from './services/ApiService'
 import { ObservationType, SymptomType } from './types/enums'
 import './App.css'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { WellBeingCalendar } from './components/WellBeingCalendar'
-import { getData, getAllData } from './api'
+import { getAllData } from './api'
 import { ApiTestPage } from './components/ApiTestPage'
 import { WellBeingAdminPage } from './components/WellBeingAdminPage'
+import { WellBeingDashboard } from './components/WellBeingDashboard'
+import { WellBeingDataExplorer } from './components/WellBeingDataExplorer'
+import { SelectedDateDetails } from './components/SelectedDateDetails'
+import type { WellBeingEntry } from './api'
 
 // Observation API service instance
 const observationApi = new ApiService<any, any>(
@@ -65,20 +69,43 @@ function buildSymptomQuery(date: string, type: SymptomType) {
 }
 
 function App() {
-  const [mode, setMode] = useState<'observation' | 'symptom' | 'calendar'>('observation')
-  const [calendarObservationType, setCalendarObservationType] = useState<ObservationType | ''>('')
+  const [mode, setMode] = useState<'observation' | 'symptom' | 'calendar' | 'dashboard' | 'explorer'>('observation')
   const [calendarObservationTypes, setCalendarObservationTypes] = useState<ObservationType[]>([])
   const [calendarSymptomTypes, setCalendarSymptomTypes] = useState<SymptomType[]>([])
-  const [highlightedDates, setHighlightedDates] = useState<string[]>([])
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
   const [dateColorMap, setDateColorMap] = useState<Record<string, 'observation' | 'symptom' | 'both'>>({})
   const [showApiTest, setShowApiTest] = useState(false)
-  const [showAdmin, setShowAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false)
+  const [selectedDateEntries, setSelectedDateEntries] = useState<WellBeingEntry[]>([])
+  const [selectedDateLoading, setSelectedDateLoading] = useState(false)
+  const [selectedDateError, setSelectedDateError] = useState<string | null>(null)
 
   // Calendar month/year state for filtering
   const today = new Date()
   const [calendarYear, setCalendarYear] = useState(today.getFullYear())
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth()) // 0-based
+
+  const refreshSelectedDateEntries = useCallback(() => {
+    if (!selectedDate || mode !== 'calendar') return
+    setSelectedDateLoading(true)
+    setSelectedDateError(null)
+    getAllData({
+      startDate: selectedDate,
+      endDate: selectedDate,
+      observationType: calendarObservationTypes.length ? calendarObservationTypes : undefined,
+      symptomType: calendarSymptomTypes.length ? calendarSymptomTypes : undefined
+    })
+      .then((data) => {
+        setSelectedDateEntries(data)
+      })
+      .catch((error: any) => {
+        setSelectedDateError(error.message ?? 'Failed to load data for the selected date.')
+        setSelectedDateEntries([])
+      })
+      .finally(() => {
+        setSelectedDateLoading(false)
+      })
+  }, [selectedDate, calendarObservationTypes, calendarSymptomTypes, mode])
 
   // Fetch all data for calendar view using new backend endpoint
   useEffect(() => {
@@ -104,41 +131,56 @@ function App() {
         }
       }
       setDateColorMap(map)
-      setHighlightedDates(Object.keys(map))
     })
   }, [mode, calendarObservationTypes, calendarSymptomTypes, calendarYear, calendarMonth])
+
+  useEffect(() => {
+    refreshSelectedDateEntries()
+  }, [refreshSelectedDateEntries])
 
   return (
     <div className="App">
       <h1>Well-Being Data</h1>
-      <div style={{ marginBottom: 24 }}>
+      <div className="App__view-switcher">
         <button
           onClick={() => setMode('observation')}
-          style={{ fontWeight: mode === 'observation' ? 'bold' : 'normal' }}
+          className={`App__view-button${mode === 'observation' ? ' App__view-button--active' : ''}`}
         >
           Observation
         </button>
         <button
           onClick={() => setMode('symptom')}
-          style={{ marginLeft: 8, fontWeight: mode === 'symptom' ? 'bold' : 'normal' }}
+          className={`App__view-button${mode === 'symptom' ? ' App__view-button--active' : ''}`}
         >
           Symptom
         </button>
         <button
           onClick={() => setMode('calendar')}
-          style={{ marginLeft: 8, fontWeight: mode === 'calendar' ? 'bold' : 'normal' }}
+          className={`App__view-button${mode === 'calendar' ? ' App__view-button--active' : ''}`}
         >
           Calendar
         </button>
         <button
+          onClick={() => setMode('dashboard')}
+          className={`App__view-button${mode === 'dashboard' ? ' App__view-button--active' : ''}`}
+        >
+          Dashboard
+        </button>
+        <button
+          onClick={() => setMode('explorer')}
+          className={`App__view-button${mode === 'explorer' ? ' App__view-button--active' : ''}`}
+        >
+          Explorer
+        </button>
+        <button
           onClick={() => setShowApiTest((v) => !v)}
-          style={{ marginLeft: 8, fontWeight: showApiTest ? 'bold' : 'normal' }}
+          className={`App__view-button App__view-button--outline${showApiTest ? ' App__view-button--active' : ''}`}
         >
           API Test
         </button>
         <button
           onClick={() => setShowAdmin((v) => !v)}
-          style={{ marginLeft: 8, fontWeight: showAdmin ? 'bold' : 'normal' }}
+          className={`App__view-button App__view-button--outline${showAdmin ? ' App__view-button--active' : ''}`}
         >
           Admin
         </button>
@@ -165,9 +207,8 @@ function App() {
           buildData={buildSymptomData}
           buildQuery={buildSymptomQuery}
         />
-      ) : (
+      ) : mode === 'calendar' ? (
         <WellBeingCalendar
-          highlightedDates={highlightedDates}
           dateColorMap={dateColorMap}
           selectedDate={selectedDate}
           onDateSelect={setSelectedDate}
@@ -180,6 +221,19 @@ function App() {
           calendarMonth={calendarMonth}
           setCalendarYear={setCalendarYear}
           setCalendarMonth={setCalendarMonth}
+        />
+      ) : mode === 'dashboard' ? (
+        <WellBeingDashboard />
+      ) : (
+        <WellBeingDataExplorer />
+      )}
+      {mode === 'calendar' && (
+        <SelectedDateDetails
+          date={selectedDate}
+          entries={selectedDateEntries}
+          isLoading={selectedDateLoading}
+          error={selectedDateError}
+          onRefresh={refreshSelectedDateEntries}
         />
       )}
     </div>

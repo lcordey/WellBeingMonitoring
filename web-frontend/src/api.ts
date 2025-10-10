@@ -1,10 +1,12 @@
 import type { ObservationType, SymptomType } from './types/enums';
 
 // Utility functions to interact with the backend REST API
+export type WellBeingDataType = 'observation' | 'symptom';
+
 export interface WellBeingData {
   date: string;
-  value: any;
-  dataType: string;
+  value: unknown;
+  dataType: WellBeingDataType;
 }
 
 export interface Observation extends WellBeingData {
@@ -16,6 +18,8 @@ export interface Symptom extends WellBeingData {
   dataType: 'symptom';
   symptomType: SymptomType;
 }
+
+export type WellBeingEntry = Observation | Symptom;
 
 export async function setData(data: Observation | Symptom) {
   const response = await fetch('http://localhost:5000/command', {
@@ -46,7 +50,7 @@ export async function getAllData(params: {
   endDate?: string;
   observationType?: string | string[];
   symptomType?: string | string[];
-}): Promise<WellBeingData[]> {
+}): Promise<WellBeingEntry[]> {
   const response = await fetch('http://localhost:5000/command/get-all', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

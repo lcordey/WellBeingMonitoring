@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { setData, getData, getAllData } from '../api';
+import React, { useMemo, useState } from 'react';
+import { setData, getData, getAllData, type WellBeingEntry } from '../api';
 import { ObservationType, SymptomType } from '../types/enums';
 
 const apiCommands = [
@@ -10,41 +10,86 @@ const apiCommands = [
 
 export const ApiTestPage: React.FC = () => {
   const [command, setCommand] = useState(apiCommands[0].name);
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [value, setValue] = useState('');
+  const [dataCategory, setDataCategory] = useState<'observation' | 'symptom'>('observation');
   const [observationType, setObservationType] = useState<ObservationType>(ObservationType.Food);
   const [symptomType, setSymptomType] = useState<SymptomType>(SymptomType.Headache);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [result, setResult] = useState<any>(null);
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rangeObservationTypes, setRangeObservationTypes] = useState<ObservationType[]>([]);
+  const [rangeSymptomTypes, setRangeSymptomTypes] = useState<SymptomType[]>([]);
+  const [result, setResult] = useState<WellBeingEntry[] | string | object | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const observationOptions = useMemo(
+    () => Object.values(ObservationType).filter((value): value is ObservationType => typeof value === 'string'),
+    []
+  );
+  const symptomOptions = useMemo(
+    () => Object.values(SymptomType).filter((value): value is SymptomType => typeof value === 'string'),
+    []
+  );
+
+  const toggleObservationFilter = (type: ObservationType) => {
+    setRangeObservationTypes((prev) =>
+      prev.includes(type) ? prev.filter((value) => value !== type) : [...prev, type]
+    );
+  };
+
+  const toggleSymptomFilter = (type: SymptomType) => {
+    setRangeSymptomTypes((prev) =>
+      prev.includes(type) ? prev.filter((value) => value !== type) : [...prev, type]
+    );
+  };
 
   const handleRun = async () => {
     setError(null);
     setResult(null);
     try {
+      if (command !== 'getAllData' && !date) {
+        throw new Error('Please select a date.');
+      }
+
       if (command === 'setData') {
+        if (!value) {
+          throw new Error('A numeric value is required to create data.');
+        }
+
+        if (dataCategory === 'observation' && !observationType) {
+          throw new Error('Select an observation type.');
+        }
+
+        if (dataCategory === 'symptom' && !symptomType) {
+          throw new Error('Select a symptom type.');
+        }
+
         const data = {
-          dataType: observationType ? 'observation' : 'symptom',
+          dataType: dataCategory,
           date,
           value: value ? Number(value) : null,
-          ...(observationType ? { observationType } : {}),
-          ...(symptomType ? { symptomType } : {}),
+          ...(dataCategory === 'observation' ? { observationType } : {}),
+          ...(dataCategory === 'symptom' ? { symptomType } : {}),
         };
         await setData(data as any);
         setResult('Success');
       } else if (command === 'getData') {
-        const query = observationType
-          ? { dataType: 'observation', date, observationType }
-          : { dataType: 'symptom', date, symptomType };
+        const query =
+          dataCategory === 'observation'
+            ? { dataType: 'observation', date, observationType }
+            : { dataType: 'symptom', date, symptomType };
         const res = await getData(query as any);
         setResult(res);
       } else if (command === 'getAllData') {
         const res = await getAllData({
           startDate,
           endDate,
-          observationType,
-          symptomType,
+          observationType: rangeObservationTypes.length ? rangeObservationTypes : undefined,
+          symptomType: rangeSymptomTypes.length ? rangeSymptomTypes : undefined,
         });
         setResult(res);
       }
@@ -54,62 +99,135 @@ export const ApiTestPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: 32 }}>
-      <h2>API Test Page</h2>
-      <div style={{ marginBottom: 16 }}>
-        <label>Command:&nbsp;
-          <select value={command} onChange={e => setCommand(e.target.value)}>
-            {apiCommands.map(cmd => (
-              <option key={cmd.name} value={cmd.name}>{cmd.description}</option>
-            ))}
-          </select>
-        </label>
+    <div className="api-test">
+      <h2 style={{ marginBottom: 16 }}>API Test Page</h2>
+      <div className="api-test__section">
+        <label style={{ fontWeight: 600 }}>Command</label>
+        <select value={command} onChange={(e) => setCommand(e.target.value)}>
+          {apiCommands.map((cmd) => (
+            <option key={cmd.name} value={cmd.name}>
+              {cmd.description}
+            </option>
+          ))}
+        </select>
       </div>
+
       {(command === 'setData' || command === 'getData') && (
         <>
-          <div style={{ marginBottom: 8 }}>
-            <label>Date: <input type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
+          <div className="api-test__section">
+            <label style={{ fontWeight: 600 }}>Data category</label>
+            <div className="api-test__inline-options">
+              <label>
+                <input
+                  type="radio"
+                  value="observation"
+                  checked={dataCategory === 'observation'}
+                  onChange={() => setDataCategory('observation')}
+                />
+                Observation
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  value="symptom"
+                  checked={dataCategory === 'symptom'}
+                  onChange={() => setDataCategory('symptom')}
+                />
+                Symptom
+              </label>
+            </div>
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <label>Observation Type: <select value={observationType} onChange={e => setObservationType(e.target.value as ObservationType)}>
-              {Object.values(ObservationType).map(t => <option key={t} value={t}>{t}</option>)}
-            </select></label>
+          <div className="api-test__section">
+            <label style={{ fontWeight: 600 }}>Date</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <label>Symptom Type: <select value={symptomType} onChange={e => setSymptomType(e.target.value as SymptomType)}>
-              {Object.values(SymptomType).map(t => <option key={t} value={t}>{t}</option>)}
-            </select></label>
-          </div>
+          {dataCategory === 'observation' ? (
+            <div className="api-test__section">
+              <label style={{ fontWeight: 600 }}>Observation type</label>
+              <select value={observationType} onChange={(e) => setObservationType(e.target.value as ObservationType)}>
+                {observationOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="api-test__section">
+              <label style={{ fontWeight: 600 }}>Symptom type</label>
+              <select value={symptomType} onChange={(e) => setSymptomType(e.target.value as SymptomType)}>
+                {symptomOptions.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </>
       )}
+
       {command === 'setData' && (
-        <div style={{ marginBottom: 8 }}>
-          <label>Value: <input type="number" value={value} onChange={e => setValue(e.target.value)} /></label>
+        <div className="api-test__section">
+          <label style={{ fontWeight: 600 }}>Value</label>
+          <input type="number" value={value} onChange={(e) => setValue(e.target.value)} />
         </div>
       )}
+
       {command === 'getAllData' && (
         <>
-          <div style={{ marginBottom: 8 }}>
-            <label>Start Date: <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></label>
+          <div className="api-test__section">
+            <label style={{ fontWeight: 600 }}>Start Date</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <label>End Date: <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></label>
+          <div className="api-test__section">
+            <label style={{ fontWeight: 600 }}>End Date</label>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <label>Observation Type: <select value={observationType} onChange={e => setObservationType(e.target.value as ObservationType)}>
-              {Object.values(ObservationType).map(t => <option key={t} value={t}>{t}</option>)}
-            </select></label>
+          <div className="api-test__section">
+            <label style={{ fontWeight: 600 }}>Observation types</label>
+            <div className="api-test__inline-options">
+              {observationOptions.map((type) => (
+                <label key={type}>
+                  <input
+                    type="checkbox"
+                    checked={rangeObservationTypes.includes(type)}
+                    onChange={() => toggleObservationFilter(type)}
+                  />
+                  {type}
+                </label>
+              ))}
+            </div>
+            <small style={{ color: '#6b7280' }}>Leave empty to include all observation types.</small>
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <label>Symptom Type: <select value={symptomType} onChange={e => setSymptomType(e.target.value as SymptomType)}>
-              {Object.values(SymptomType).map(t => <option key={t} value={t}>{t}</option>)}
-            </select></label>
+          <div className="api-test__section">
+            <label style={{ fontWeight: 600 }}>Symptom types</label>
+            <div className="api-test__inline-options">
+              {symptomOptions.map((type) => (
+                <label key={type}>
+                  <input
+                    type="checkbox"
+                    checked={rangeSymptomTypes.includes(type)}
+                    onChange={() => toggleSymptomFilter(type)}
+                  />
+                  {type}
+                </label>
+              ))}
+            </div>
+            <small style={{ color: '#6b7280' }}>Leave empty to include all symptom types.</small>
           </div>
         </>
       )}
-      <button onClick={handleRun} style={{ marginTop: 12, padding: '8px 24px' }}>Run</button>
-      {error && <div style={{ color: 'red', marginTop: 16 }}>{error}</div>}
-      {result && <pre style={{ marginTop: 16, background: '#f3f4f6', padding: 16, borderRadius: 8, maxHeight: 300, overflow: 'auto' }}>{typeof result === 'string' ? result : JSON.stringify(result, null, 2)}</pre>}
+
+      <button onClick={handleRun} className="api-test__run">
+        Run request
+      </button>
+      {error && <div className="api-test__error">{error}</div>}
+      {result && (
+        <pre className="api-test__result">
+          {typeof result === 'string' ? result : JSON.stringify(result, null, 2)}
+        </pre>
+      )}
     </div>
   );
 };
