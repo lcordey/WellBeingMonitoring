@@ -16,14 +16,22 @@ builder.Services.AddSingleton<IRestApiCommandHandler, RestApiCommandHandler>();
 // Register WellBeingDataRepository for DI
 builder.Services.AddSingleton<IWellBeingDataRepository, WellBeingDataRepository>();
 
-// Register GenericPostgresRepository for DI
-builder.Services.AddSingleton<IGenericPostgresRepository>(sp =>
+// Register a database repository for DI
+var useInMemoryDatabase = builder.Configuration.GetValue<bool>("UseInMemoryDatabase");
+if (useInMemoryDatabase)
 {
-    var configuration = sp.GetRequiredService<IConfiguration>();
-    var logger = sp.GetRequiredService<ILogger<GenericPostgresRepository>>();
-    var connectionString = configuration.GetConnectionString("WellBeingDatabase");
-    return new GenericPostgresRepository(connectionString, logger);
-});
+    builder.Services.AddSingleton<IGenericPostgresRepository, InMemoryGenericRepository>();
+}
+else
+{
+    builder.Services.AddSingleton<IGenericPostgresRepository>(sp =>
+    {
+        var configuration = sp.GetRequiredService<IConfiguration>();
+        var logger = sp.GetRequiredService<ILogger<GenericPostgresRepository>>();
+        var connectionString = configuration.GetConnectionString("WellBeingDatabase");
+        return new GenericPostgresRepository(connectionString, logger);
+    });
+}
 
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
 {
