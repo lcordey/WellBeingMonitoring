@@ -1,5 +1,6 @@
 using RestApiInterface.Data;
 using RestApiInterface.Commands;
+using System.Collections.Generic;
 using WebApi.DataBase;
 
 namespace WebApi.Handlers
@@ -73,6 +74,14 @@ namespace WebApi.Handlers
             _logger.LogInformation("GetWellBeingDefinitionAsync called with command: {@Command}", command);
             var result = await _repository.GetWellBeingDefinitionAsync(command.Category);
             _logger.LogInformation("GetWellBeingDefinitionAsync returning {Count} definitions", result.Count);
+            return result;
+        }
+
+        public async Task<IReadOnlyList<WellBeingCategoryTypes>> GetWellBeingCategoriesAndTypesAsync()
+        {
+            _logger.LogInformation("GetWellBeingCategoriesAndTypesAsync called");
+            var result = await _repository.GetAllCategoriesAndTypesAsync();
+            _logger.LogInformation("GetWellBeingCategoriesAndTypesAsync returning {Count} categories", result.Count);
             return result;
         }
     }
