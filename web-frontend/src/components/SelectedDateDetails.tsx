@@ -9,15 +9,8 @@ interface SelectedDateDetailsProps {
   onRefresh?: () => void;
 }
 
-const getEntryLabel = (entry: WellBeingEntry) => {
-  if (entry.dataType === 'observation') {
-    return entry.observationType ?? 'Observation';
-  }
-  if (entry.dataType === 'symptom') {
-    return entry.symptomType ?? 'Symptom';
-  }
-  return 'Entry';
-};
+const formatCategory = (category: string) =>
+  category ? category.charAt(0).toUpperCase() + category.slice(1) : category;
 
 export const SelectedDateDetails: React.FC<SelectedDateDetailsProps> = ({
   date,
@@ -40,7 +33,11 @@ export const SelectedDateDetails: React.FC<SelectedDateDetailsProps> = ({
       <div className="selected-date-details__header">
         <div>
           <h3>Details for {new Date(date).toLocaleDateString()}</h3>
-          <p>{entries.length ? `${entries.length} entr${entries.length > 1 ? 'ies' : 'y'} recorded` : 'No entries recorded.'}</p>
+          <p>
+            {entries.length
+              ? `${entries.length} entr${entries.length > 1 ? 'ies' : 'y'} recorded`
+              : 'No entries recorded.'}
+          </p>
         </div>
         <button className="selected-date-details__refresh" onClick={onRefresh} disabled={isLoading}>
           Refresh
@@ -51,16 +48,16 @@ export const SelectedDateDetails: React.FC<SelectedDateDetailsProps> = ({
       {!isLoading && !error && (
         <ul className="selected-date-details__list">
           {entries.map((entry, index) => (
-            <li key={`${entry.dataType}-${getEntryLabel(entry)}-${index}`}>
+            <li key={`${entry.category}-${entry.type}-${index}`}>
               <div className="selected-date-details__item">
-                <span className={`selected-date-details__badge selected-date-details__badge--${entry.dataType}`}>
-                  {entry.dataType}
+                <span className="selected-date-details__badge">
+                  {formatCategory(entry.category)}
                 </span>
                 <div>
-                  <strong>{getEntryLabel(entry)}</strong>
-                  {entry.value !== null && entry.value !== undefined && (
-                    <span className="selected-date-details__value">Value: {String(entry.value)}</span>
-                  )}
+                  <strong>{entry.type}</strong>
+                  <div className="selected-date-details__value">
+                    Values: {entry.values.length ? entry.values.join(', ') : '—'}
+                  </div>
                 </div>
               </div>
             </li>

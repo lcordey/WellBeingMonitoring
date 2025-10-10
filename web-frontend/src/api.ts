@@ -1,74 +1,235 @@
-import type { ObservationType, SymptomType } from './types/enums';
+const BASE_URL = 'http://localhost:5000/command';
 
-// Utility functions to interact with the backend REST API
-export type WellBeingDataType = 'observation' | 'symptom';
-
-export interface WellBeingData {
-  date: string;
-  value: unknown;
-  dataType: WellBeingDataType;
-}
-
-export interface Observation extends WellBeingData {
-  dataType: 'observation';
-  observationType: ObservationType;
-}
-
-export interface Symptom extends WellBeingData {
-  dataType: 'symptom';
-  symptomType: SymptomType;
-}
-
-export type WellBeingEntry = Observation | Symptom;
-
-export async function setData(data: Observation | Symptom) {
-  const response = await fetch('http://localhost:5000/command', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data })
-  });
-  if (!response.ok) throw new Error('Failed to set data');
-}
-
-export async function getData(query: Partial<Observation> | Partial<Symptom>) {
-  console.log('getData query:', query); // Debug log
-  const response = await fetch('http://localhost:5000/command/get', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(query)
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    console.error('Backend error response:', text); // Debug log
-    throw new Error('Failed to get data');
+const normaliseDate = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value.length >= 10 ? value.slice(0, 10) : value;
   }
-  return response.json();
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  return String(value ?? '');
+};
+
+const toBoolean = (value: unknown): boolean => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return Boolean(value);
+};
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => '');
+    throw new Error(message || `Request to ${path} failed with status ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.toLowerCase().includes('application/json')) {
+    return response.json() as Promise<T>;
+  }
+
+  return undefined as T;
 }
 
-export async function getAllData(params: {
+export interface WellBeingEntry {
+  date: string;
+  category: string;
+  type: string;
+  values: string[];
+}
+
+export interface WellBeingDefinitionValue {
+  value: string;
+  noticeable: boolean;
+}
+
+export interface WellBeingDefinition {
+  category: string;
+  type: string;
+  allowMultiple: boolean;
+  values: WellBeingDefinitionValue[];
+}
+
+type AnyRecord = Record<string, unknown>;
+
+const asRecord = (value: unknown): AnyRecord =>
+  value && typeof value === 'object' ? (value as AnyRecord) : {};
+
+const pickFirst = (source: AnyRecord, ...keys: string[]) => {
+  for (const key of keys) {
+    if (key in source) {
+      return source[key];
+    }
+  }
+  return undefined;
+};
+
+const normaliseEntry = (raw: unknown): WellBeingEntry => {
+  const record = asRecord(raw);
+  const date = normaliseDate(pickFirst(record, 'Date', 'date'));
+  const category = String(pickFirst(record, 'Category', 'category') ?? '').trim();
+  const type = String(pickFirst(record, 'Type', 'type') ?? '').trim();
+  const rawValues = pickFirst(record, 'Values', 'values');
+  const arrayValues = Array.isArray(rawValues)
+    ? rawValues
+    : rawValues === undefined || rawValues === null
+      ? []
+      : [rawValues];
+  const values = arrayValues.map((value) => String(value));
+
+  return {
+    date,
+    category,
+    type,
+    values,
+  };
+};
+
+const normaliseValue = (raw: unknown): WellBeingDefinitionValue => {
+  const record = asRecord(raw);
+  const arrayValue = Array.isArray(raw) ? raw : [];
+  const valueCandidate =
+    pickFirst(record, 'Value', 'value', 'Item1', 'item1') ?? arrayValue[0] ?? '';
+  const noticeableCandidate =
+    pickFirst(record, 'Noticeable', 'noticeable', 'Item2', 'item2') ??
+    arrayValue[1] ??
+    false;
+
+  return {
+    value: String(valueCandidate ?? ''),
+    noticeable: toBoolean(noticeableCandidate),
+  };
+};
+
+const normaliseDefinition = (raw: unknown): WellBeingDefinition => {
+  const record = asRecord(raw);
+  const valuesContainer = asRecord(pickFirst(record, 'Values', 'values'));
+  const rawValues = pickFirst(valuesContainer, 'Values', 'values');
+
+  const values = Array.isArray(rawValues)
+    ? rawValues.map(normaliseValue)
+    : [];
+
+  return {
+    category: String(pickFirst(record, 'Category', 'category') ?? '').trim(),
+    type: String(pickFirst(record, 'Type', 'type') ?? '').trim(),
+    allowMultiple: toBoolean(
+      pickFirst(
+        record,
+        'AllowMultiple',
+        'allowMultiple',
+        'AllowMultipleSelection',
+        'allowMultipleSelection'
+      ) ?? false
+    ),
+    values,
+  };
+};
+
+export async function addWellBeingData(entry: {
+  date: string;
+  category: string;
+  type: string;
+  values: string[];
+}) {
+  await postJson<void>('/addWBData', {
+    Data: {
+      Date: entry.date,
+      Category: entry.category,
+      Type: entry.type,
+      Values: entry.values,
+    },
+  });
+}
+
+export interface GetAllWellBeingDataParams {
   startDate?: string;
   endDate?: string;
-  observationType?: string | string[];
-  symptomType?: string | string[];
-}): Promise<WellBeingEntry[]> {
-  const response = await fetch('http://localhost:5000/command/get-all', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      StartDate: params.startDate ?? null,
-      EndDate: params.endDate ?? null,
-      ObservationType: Array.isArray(params.observationType)
-        ? params.observationType
-        : params.observationType
-        ? [params.observationType]
-        : [],
-      SymptomType: Array.isArray(params.symptomType)
-        ? params.symptomType
-        : params.symptomType
-        ? [params.symptomType]
-        : [],
-    })
-  });
-  if (!response.ok) throw new Error('Failed to get all data');
-  return response.json();
+  dataTypes?: { category: string; type: string }[];
 }
+
+export async function getAllWellBeingData(
+  params: GetAllWellBeingDataParams = {}
+): Promise<WellBeingEntry[]> {
+  const response = await postJson<unknown[]>('/getAll', {
+    StartDate: params.startDate ?? null,
+    EndDate: params.endDate ?? null,
+    DataTypes: params.dataTypes?.map((item) => ({
+      Category: item.category,
+      Type: item.type,
+    })) ?? [],
+  });
+
+  if (!Array.isArray(response)) {
+    return [];
+  }
+
+  return response.map(normaliseEntry);
+}
+
+export async function createWellBeingType(payload: {
+  category: string;
+  type: string;
+  allowMultipleSelection: boolean;
+}) {
+  await postJson<void>('/createWBType', {
+    Category: payload.category,
+    Type: payload.type,
+    AllowMultipleSelection: payload.allowMultipleSelection,
+  });
+}
+
+export async function deleteWellBeingType(payload: { category: string; type: string }) {
+  await postJson<void>('/deleteWBType', {
+    Category: payload.category,
+    Type: payload.type,
+  });
+}
+
+export async function addWellBeingValue(payload: { type: string; value: string; notable: boolean }) {
+  await postJson<void>('/addWBValue', {
+    Type: payload.type,
+    Value: payload.value,
+    Notable: payload.notable,
+  });
+}
+
+export async function deleteWellBeingValue(payload: { type: string; value: string }) {
+  await postJson<void>('/deleteWBValue', {
+    Type: payload.type,
+    Value: payload.value,
+  });
+}
+
+export async function getWellBeingDefinitions(
+  category: string
+): Promise<WellBeingDefinition[]> {
+  const response = await postJson<unknown[]>('/getWBDefinitions', {
+    Category: category,
+  });
+
+  if (!Array.isArray(response)) {
+    return [];
+  }
+
+  return response.map(normaliseDefinition);
+}
+
+export async function getWellBeingValues(
+  type: string
+): Promise<WellBeingDefinitionValue[]> {
+  const response = await postJson<unknown>('/getWBValues', {
+    Type: type,
+  });
+
+  const valuesRecord = asRecord(response);
+  const rawValues = pickFirst(valuesRecord, 'Values', 'values');
+  if (!Array.isArray(rawValues)) return [];
+  return rawValues.map(normaliseValue);
+}
+
