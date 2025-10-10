@@ -1,5 +1,6 @@
 using RestApiInterface.Data;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace WebApi.DataBase
@@ -21,5 +22,6 @@ namespace WebApi.DataBase
         Task DeleteWellBeingValueAsync(string type, string value);
         Task<List<WellBeingDefinition>> GetWellBeingDefinitionAsync(string category);
         Task<WellBeingValuesDefinition> GetWellBeingValuesAsync(string type);
+        Task<IReadOnlyList<WellBeingCategoryTypes>> GetAllCategoriesAndTypesAsync();
     }
 }

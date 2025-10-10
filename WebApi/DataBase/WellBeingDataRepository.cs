@@ -1,4 +1,7 @@
 using RestApiInterface.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace WebApi.DataBase
 {
@@ -126,7 +129,7 @@ namespace WebApi.DataBase
             var filter = new Dictionary<string, object>
             {
                 ["type"] = type,
-                ["category"] = "observation"
+                ["category"] = category
             };
             await _genericRepo.RemoveAsync("entry_definitions", filter);
             _logger.LogInformation("DeleteWellBeingTypeAsync completed for category: {Category}, type: {Type}", category, type);
@@ -195,6 +198,45 @@ namespace WebApi.DataBase
                 }
             }
             _logger.LogInformation("GetWellBeingDefinitionAsync returning {Count} definitions for category: {Category}", result.Count, category);
+            return result;
+        }
+
+        public async Task<IReadOnlyList<WellBeingCategoryTypes>> GetAllCategoriesAndTypesAsync()
+        {
+            _logger.LogInformation("GetAllCategoriesAndTypesAsync called");
+            var rows = await _genericRepo.GetAllAsync("entry_definitions");
+            var catalogue = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rows)
+            {
+                if (row is object[] arr && arr.Length >= 4)
+                {
+                    var type = arr[1]?.ToString()?.Trim();
+                    var category = arr[2]?.ToString()?.Trim();
+                    if (string.IsNullOrWhiteSpace(category) || string.IsNullOrWhiteSpace(type))
+                    {
+                        continue;
+                    }
+
+                    if (!catalogue.TryGetValue(category, out var types))
+                    {
+                        types = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        catalogue[category] = types;
+                    }
+
+                    types.Add(type);
+                }
+            }
+
+            var result = catalogue
+                .Select(pair => new WellBeingCategoryTypes(
+                    pair.Key,
+                    pair.Value
+                        .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                        .ToList()))
+                .OrderBy(item => item.Category, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            _logger.LogInformation("GetAllCategoriesAndTypesAsync returning {Count} categories", result.Count);
             return result;
         }
     }

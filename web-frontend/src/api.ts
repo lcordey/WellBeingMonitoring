@@ -36,6 +36,25 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return undefined as T;
 }
 
+async function getJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => '');
+    throw new Error(message || `Request to ${path} failed with status ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.toLowerCase().includes('application/json')) {
+    return response.json() as Promise<T>;
+  }
+
+  return undefined as T;
+}
+
 export interface WellBeingEntry {
   date: string;
   category: string;
@@ -53,6 +72,11 @@ export interface WellBeingDefinition {
   type: string;
   allowMultiple: boolean;
   values: WellBeingDefinitionValue[];
+}
+
+export interface WellBeingCategoryTypes {
+  category: string;
+  types: string[];
 }
 
 type AnyRecord = Record<string, unknown>;
@@ -128,6 +152,28 @@ const normaliseDefinition = (raw: unknown): WellBeingDefinition => {
       ) ?? false
     ),
     values,
+  };
+};
+
+const normaliseCategoryTypes = (raw: unknown): WellBeingCategoryTypes => {
+  const record = asRecord(raw);
+  const rawTypes = pickFirst(record, 'Types', 'types');
+  const typesArray = Array.isArray(rawTypes)
+    ? rawTypes
+    : rawTypes === undefined || rawTypes === null
+      ? []
+      : [rawTypes];
+  const types = Array.from(
+    new Set(
+      typesArray
+        .map((value) => String(value ?? '').trim())
+        .filter((value) => value.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  return {
+    category: String(pickFirst(record, 'Category', 'category') ?? '').trim(),
+    types,
   };
 };
 
@@ -231,5 +277,17 @@ export async function getWellBeingValues(
   const rawValues = pickFirst(valuesRecord, 'Values', 'values');
   if (!Array.isArray(rawValues)) return [];
   return rawValues.map(normaliseValue);
+}
+
+export async function getWellBeingCategoryTypes(): Promise<WellBeingCategoryTypes[]> {
+  const response = await getJson<unknown[]>('/catalogue');
+
+  if (!Array.isArray(response)) {
+    return [];
+  }
+
+  return response
+    .map(normaliseCategoryTypes)
+    .filter((item) => item.category.length > 0);
 }
 

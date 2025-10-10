@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   addWellBeingData,
+  getWellBeingCategoryTypes,
   getWellBeingDefinitions,
+  type WellBeingCategoryTypes,
   type WellBeingDefinition,
 } from '../api';
 
@@ -15,6 +17,11 @@ interface CategoryDefinitions {
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
+interface CatalogueEntry {
+  label: string;
+  types: string[];
+}
+
 export const WellBeingDataEntry: React.FC = () => {
   const today = new Date();
   const [date, setDate] = useState(() => toDateInputValue(today));
@@ -25,22 +32,27 @@ export const WellBeingDataEntry: React.FC = () => {
   const [definitionsByCategory, setDefinitionsByCategory] = useState<
     Record<string, CategoryDefinitions>
   >({});
+  const [catalogue, setCatalogue] = useState<Record<string, CatalogueEntry>>({});
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingDefinitions, setLoadingDefinitions] = useState(false);
+  const [loadingCatalogue, setLoadingCatalogue] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categoryKey = normaliseKey(category);
 
-  const knownCategories = useMemo(() => {
+  const categoryOptions = useMemo(() => {
     const entries = new Map<string, string>();
     entries.set(normaliseKey('observation'), 'observation');
     entries.set(normaliseKey('symptom'), 'symptom');
     Object.values(definitionsByCategory).forEach((item) => {
       entries.set(normaliseKey(item.label), item.label);
     });
-    return Array.from(new Set(entries.values())).sort();
-  }, [definitionsByCategory]);
+    Object.values(catalogue).forEach((item) => {
+      entries.set(normaliseKey(item.label), item.label);
+    });
+    return Array.from(entries.values()).sort((a, b) => a.localeCompare(b));
+  }, [catalogue, definitionsByCategory]);
 
   const definitionsForCategory = useMemo(
     () => definitionsByCategory[categoryKey]?.definitions ?? [],
@@ -62,9 +74,57 @@ export const WellBeingDataEntry: React.FC = () => {
   const allowMultiple = selectedDefinition?.allowMultiple ?? false;
 
   const typeOptions = useMemo(
-    () => definitionsForCategory.map((definition) => definition.type).sort(),
-    [definitionsForCategory]
+    () => {
+      const catalogueTypes = catalogue[categoryKey]?.types ?? [];
+      const definitionTypes = definitionsForCategory.map((definition) => definition.type);
+      return Array.from(
+        new Set(
+          [...catalogueTypes, ...definitionTypes]
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0)
+        )
+      ).sort((a, b) => a.localeCompare(b));
+    },
+    [catalogue, categoryKey, definitionsForCategory]
   );
+
+  const refreshCatalogue = useCallback(async () => {
+    if (loadingCatalogue) return;
+    setLoadingCatalogue(true);
+    setError(null);
+    try {
+      const entries = await getWellBeingCategoryTypes();
+      setCatalogue(() => {
+        const map: Record<string, CatalogueEntry> = {};
+        entries.forEach((entry: WellBeingCategoryTypes) => {
+          const label = entry.category?.trim();
+          if (!label) return;
+          const key = normaliseKey(label);
+          const types = Array.from(
+            new Set(
+              (entry.types ?? [])
+                .map((type) => type.trim())
+                .filter((value) => value.length > 0)
+            )
+          ).sort((a, b) => a.localeCompare(b));
+          map[key] = {
+            label,
+            types,
+          };
+        });
+        return map;
+      });
+    } catch (err: unknown) {
+      setError(
+        getErrorMessage(
+          err,
+          'Unable to load the list of categories and types from the server.'
+        )
+      );
+    } finally {
+      setLoadingCatalogue(false);
+    }
+  }, [loadingCatalogue]);
 
   const fetchDefinitions = useCallback(
     async (categoryName: string) => {
@@ -92,6 +152,10 @@ export const WellBeingDataEntry: React.FC = () => {
   );
 
   useEffect(() => {
+    void refreshCatalogue();
+  }, [refreshCatalogue]);
+
+  useEffect(() => {
     const defaultCategories = ['observation', 'symptom'];
     const loadDefaults = async () => {
       for (const defaultCategory of defaultCategories) {
@@ -111,6 +175,16 @@ export const WellBeingDataEntry: React.FC = () => {
   }, [category, categoryKey, definitionsByCategory, fetchDefinitions]);
 
   useEffect(() => {
+    if (categoryOptions.length === 0) {
+      return;
+    }
+    const normalisedOptions = new Set(categoryOptions.map(normaliseKey));
+    if (!normalisedOptions.has(categoryKey)) {
+      setCategory(categoryOptions[0]);
+    }
+  }, [categoryKey, categoryOptions]);
+
+  useEffect(() => {
     setSelectedValues((prev) => {
       if (!availableValues.length) {
         return allowMultiple ? prev : prev.slice(0, 1);
@@ -127,6 +201,19 @@ export const WellBeingDataEntry: React.FC = () => {
   useEffect(() => {
     setSelectedValues([]);
   }, [type]);
+
+  useEffect(() => {
+    if (!type) {
+      if (typeOptions.length === 1) {
+        setType(typeOptions[0]);
+      }
+      return;
+    }
+    const normalisedOptions = new Set(typeOptions.map(normaliseKey));
+    if (!normalisedOptions.has(normaliseKey(type))) {
+      setType('');
+    }
+  }, [typeOptions, type]);
 
   const toggleValue = (value: string) => {
     if (allowMultiple) {
@@ -201,8 +288,11 @@ export const WellBeingDataEntry: React.FC = () => {
         <button
           type="button"
           className="data-entry__refresh"
-          onClick={() => void fetchDefinitions(category)}
-          disabled={loadingDefinitions}
+          onClick={() => {
+            void refreshCatalogue();
+            void fetchDefinitions(category);
+          }}
+          disabled={loadingDefinitions || loadingCatalogue}
         >
           Refresh definitions
         </button>
@@ -218,31 +308,40 @@ export const WellBeingDataEntry: React.FC = () => {
         </label>
         <label>
           Category
-          <input
-            list="data-entry-category-options"
-            value={category}
+          <select
+            value={categoryOptions.length ? category : ''}
             onChange={(event) => setCategory(event.target.value)}
-            placeholder="e.g. observation"
-          />
-          <datalist id="data-entry-category-options">
-            {knownCategories.map((option) => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
+            disabled={categoryOptions.length === 0}
+          >
+            {categoryOptions.length === 0 ? (
+              <option value="">No categories available</option>
+            ) : (
+              <>
+                {categoryOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </>
+            )}
+          </select>
         </label>
         <label>
           Type
-          <input
-            list="data-entry-type-options"
+          <select
             value={type}
             onChange={(event) => setType(event.target.value)}
-            placeholder="Select or type a type"
-          />
-          <datalist id="data-entry-type-options">
+            disabled={typeOptions.length === 0}
+          >
+            <option value="">
+              {typeOptions.length === 0 ? 'No types available' : 'Select a type'}
+            </option>
             {typeOptions.map((option) => (
-              <option key={option} value={option} />
+              <option key={option} value={option}>
+                {option}
+              </option>
             ))}
-          </datalist>
+          </select>
         </label>
       </div>
 

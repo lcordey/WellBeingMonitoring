@@ -126,6 +126,14 @@ app.MapPost("/command/getWBValues", async ([FromBody] GetWellBeingValuesCmd comm
     return result;
 }).WithName("PostGetWellBeingValuesCommand");
 
+// GET /command/catalogue endpoint for categories and types
+app.MapGet("/command/catalogue", async (IRestApiCommandHandler handler, ILogger<Program> logger) =>
+{
+    logger.LogInformation("Received request for categories and types catalogue");
+    var result = await handler.GetWellBeingCategoriesAndTypesAsync();
+    return Results.Ok(result);
+}).WithName("GetWellBeingCategoriesAndTypes");
+
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Application started at {Time}", DateTime.UtcNow);
 
