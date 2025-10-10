@@ -113,7 +113,7 @@ namespace WebApi.DataBase
             var dict = new Dictionary<string, object>
             {
                 ["type"] = type,
-                ["category"] = "observation",
+                ["category"] = category,
                 ["allows_multiple"] = allowMultipleSelection
             };
             await _genericRepo.AddAsync("entry_definitions", dict);
