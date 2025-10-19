@@ -1,4 +1,6 @@
 {
-  "Category": "observation",
-  "Type": "eau"
+  "CategoryAndType": {
+    "Category": "observation",
+    "Type": "eau"
+  }
 }

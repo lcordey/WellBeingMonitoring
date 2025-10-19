@@ -72,23 +72,30 @@ namespace WebApi.DataBase
         public async Task<IEnumerable<WellBeingData>> GetAllAsync(
             DateOnly? startDate,
             DateOnly? endDate,
-            IList<(string Category, string Type)> dataTypes)
+            IList<WellBeingCategoryAndType> categoryAndTypes)
         {
-            _logger.LogInformation("GetAllAsync called with startDate: {StartDate}, endDate: {EndDate}, dataTypes count: {Count}", startDate, endDate, dataTypes?.Count ?? 0);
+            _logger.LogInformation("GetAllAsync called with startDate: {StartDate}, endDate: {EndDate}, dataTypes count: {Count}", startDate, endDate, categoryAndTypes?.Count ?? 0);
+            if(categoryAndTypes == null || categoryAndTypes.Count == 0)
+            {
+                _logger.LogInformation("No categoryAndTypes provided, returning empty list");
+                return new List<WellBeingData>();
+            }
+
             var allData = await GetAllDataFromDbAsync();
+            _logger.LogInformation("\nFirst type {} and category {}", categoryAndTypes!.FirstOrDefault()?.Type, categoryAndTypes!.FirstOrDefault()?.Category);
             var filtered = allData.Where(data =>
-                (!startDate.HasValue || data.Date >= startDate.Value) && !
+                (!startDate.HasValue || data.Date >= startDate.Value) &&
                 (!endDate.HasValue || data.Date <= endDate.Value) &&
                 (
-                    dataTypes == null || dataTypes.Count == 0 ||
-                    dataTypes.Any(dt => string.Equals(data.Category, dt.Category, StringComparison.OrdinalIgnoreCase) &&
-                                        string.Equals(data.Type, dt.Type, StringComparison.OrdinalIgnoreCase))
+                    categoryAndTypes!.Any(expectedData => string.Equals(data.Category, expectedData.Category, StringComparison.OrdinalIgnoreCase) &&
+                                        string.Equals(data.Type, expectedData.Type, StringComparison.OrdinalIgnoreCase))
                 )
             );
             var resultList = filtered.ToList();
             _logger.LogInformation("GetAllAsync returning {Count} records", resultList.Count);
             return resultList;
         }
+
         private async Task<IEnumerable<WellBeingData>> GetAllDataFromDbAsync()
         {
             _logger.LogInformation("GetAllDataFromDbAsync called");
@@ -123,16 +130,16 @@ namespace WebApi.DataBase
             _logger.LogInformation("CreateWellBeingTypeAsync completed for category: {Category}, type: {Type}", category, type);
         }
 
-        public async Task DeleteWellBeingTypeAsync(string category, string type)
+        public async Task DeleteWellBeingTypeAsync(WellBeingCategoryAndType categoryAndType)
         {
-            _logger.LogInformation("DeleteWellBeingTypeAsync called for category: {Category}, type: {Type}", category, type);
+            _logger.LogInformation("DeleteWellBeingTypeAsync called for category: {Category}, type: {Type}", categoryAndType.Category, categoryAndType.Type);
             var filter = new Dictionary<string, object>
             {
-                ["type"] = type,
-                ["category"] = category
+                ["type"] = categoryAndType.Type,
+                ["category"] = categoryAndType.Category
             };
             await _genericRepo.RemoveAsync("entry_definitions", filter);
-            _logger.LogInformation("DeleteWellBeingTypeAsync completed for category: {Category}, type: {Type}", category, type);
+            _logger.LogInformation("DeleteWellBeingTypeAsync completed for category: {Category}, type: {Type}", categoryAndType.Category, categoryAndType.Type);
         }
 
         public async Task AddWellBeingValueAsync(string type, string value, bool notable)
@@ -165,7 +172,7 @@ namespace WebApi.DataBase
             _logger.LogInformation("GetWellBeingValuesAsync called for type: {Type}", type);
             var filter = new Dictionary<string, object> { ["parent_type"] = type };
             var rows = await _genericRepo.GetAsync("entry_values", filter);
-            var values = new List<(string Value, bool Noticeable)>();
+            var values = new List<WellBeingValue>();
             foreach (var row in rows)
             {
                 if (row is object[] arr && arr.Length >= 4)
@@ -173,7 +180,7 @@ namespace WebApi.DataBase
                     var value = arr[2]?.ToString();
                     var notable = Convert.ToBoolean(arr[3]);
                     if (value != null)
-                        values.Add((value, notable));
+                        values.Add(new WellBeingValue(value, notable));
                 }
             }
             _logger.LogInformation("GetWellBeingValuesAsync returning {Count} values for type: {Type}", values.Count, type);
@@ -190,8 +197,8 @@ namespace WebApi.DataBase
             {
                 if (row is object[] arr && arr.Length >= 3)
                 {
-                    var type = arr[1]?.ToString();
-                    var cat = arr[2]?.ToString();
+                    var cat = arr[1]?.ToString();
+                    var type = arr[2]?.ToString();
                     var allowMultiple = Convert.ToBoolean(arr[3]);
                     var valuesDef = await GetWellBeingValuesAsync(type!);
                     result.Add(new WellBeingDefinition(cat!, type!, valuesDef, allowMultiple));
@@ -201,11 +208,11 @@ namespace WebApi.DataBase
             return result;
         }
 
-        public async Task<IReadOnlyList<WellBeingCategoryTypes>> GetAllCategoriesAndTypesAsync()
+        public async Task<IReadOnlyList<WellBeingCategoryAndType>> GetAllCategoriesAndTypesAsync()
         {
             _logger.LogInformation("GetAllCategoriesAndTypesAsync called");
             var rows = await _genericRepo.GetAllAsync("entry_definitions");
-            var catalogue = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            var catalogue = new List<WellBeingCategoryAndType> ();
             foreach (var row in rows)
             {
                 if (row is object[] arr && arr.Length >= 4)
@@ -213,31 +220,14 @@ namespace WebApi.DataBase
                     var type = arr[1]?.ToString()?.Trim();
                     var category = arr[2]?.ToString()?.Trim();
                     if (string.IsNullOrWhiteSpace(category) || string.IsNullOrWhiteSpace(type))
-                    {
                         continue;
-                    }
 
-                    if (!catalogue.TryGetValue(category, out var types))
-                    {
-                        types = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        catalogue[category] = types;
-                    }
-
-                    types.Add(type);
+                    catalogue.Add(new WellBeingCategoryAndType(category, type));
                 }
             }
 
-            var result = catalogue
-                .Select(pair => new WellBeingCategoryTypes(
-                    pair.Key,
-                    pair.Value
-                        .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
-                        .ToList()))
-                .OrderBy(item => item.Category, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            _logger.LogInformation("GetAllCategoriesAndTypesAsync returning {Count} categories", result.Count);
-            return result;
+            _logger.LogInformation("GetAllCategoriesAndTypesAsync returning {Count} categories/types", catalogue.Count);
+            return catalogue;
         }
     }
 }

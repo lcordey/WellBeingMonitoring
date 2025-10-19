@@ -136,5 +136,7 @@ app.MapGet("/command/catalogue", async (IRestApiCommandHandler handler, ILogger<
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Application started at {Time}", DateTime.UtcNow);
+logger.LogInformation("Environment: {EnvironmentName}", app.Environment.EnvironmentName);
+logger.LogInformation("Using {DatabaseType} as database repository", useInMemoryDatabase ? "InMemory" : "PostgreSQL");
 
 app.Run();

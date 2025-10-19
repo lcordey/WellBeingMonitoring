@@ -1,9 +1,9 @@
 {
-  "StartDate": "2025-06-01",
-  "EndDate": "2025-06-15",
-  "DataTypes": [
-    { "Category": "Mood", "Type": "Happiness" },
-    { "Category": "Activity", "Type": "Exercise" },
+  "StartDate": "2024-01-01",
+  "EndDate": "2026-12-30",
+  "CategoryAndTypes": [
+    { "Category": "Observation", "Type": "mood" },
+    { "Category": "Observation", "Type": "alcohol" },
     { "Category": "Observation", "Type": "eau" }
   ]
 }

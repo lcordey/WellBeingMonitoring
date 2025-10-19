@@ -1,3 +1,5 @@
+using RestApiInterface.Data;
+
 namespace RestApiInterface.Commands;
 
-public record DeleteWellBeingTypeCmd(string Category, string Type);
+public record DeleteWellBeingTypeCmd(WellBeingCategoryAndType CategoryAndType);

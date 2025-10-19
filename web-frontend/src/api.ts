@@ -196,7 +196,7 @@ export async function addWellBeingData(entry: {
 export interface GetAllWellBeingDataParams {
   startDate?: string;
   endDate?: string;
-  dataTypes?: { category: string; type: string }[];
+  categoryAndTypes?: { category: string; type: string }[];
 }
 
 export async function getAllWellBeingData(
@@ -205,7 +205,7 @@ export async function getAllWellBeingData(
   const response = await postJson<unknown[]>('/getAll', {
     StartDate: params.startDate ?? null,
     EndDate: params.endDate ?? null,
-    DataTypes: params.dataTypes?.map((item) => ({
+    CategoryAndTypes: params.categoryAndTypes?.map((item) => ({
       Category: item.category,
       Type: item.type,
     })) ?? [],
@@ -232,8 +232,10 @@ export async function createWellBeingType(payload: {
 
 export async function deleteWellBeingType(payload: { category: string; type: string }) {
   await postJson<void>('/deleteWBType', {
-    Category: payload.category,
-    Type: payload.type,
+    CategoryAndType: {
+      Category: payload.category,
+      Type: payload.type,
+    },
   });
 }
 

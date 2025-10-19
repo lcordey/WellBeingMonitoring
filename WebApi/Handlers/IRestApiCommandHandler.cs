@@ -19,6 +19,6 @@ namespace WebApi.Handlers
         Task DeleteWellBeingValueAsync(DeleteWellBeingValueCmd command);
         Task<List<WellBeingDefinition>> GetWellBeingDefinitionAsync(GetWellBeingDefinitionsCmd command);
         Task<WellBeingValuesDefinition> GetWellBeingValuesAsync(GetWellBeingValuesCmd command);
-        Task<IReadOnlyList<WellBeingCategoryTypes>> GetWellBeingCategoriesAndTypesAsync();
+        Task<IReadOnlyList<WellBeingCategoryAndType>> GetWellBeingCategoriesAndTypesAsync();
     }
 }

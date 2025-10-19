@@ -1,3 +1,5 @@
+using RestApiInterface.Data;
+
 namespace RestApiInterface.Commands
 {
     /// <summary>
@@ -6,6 +8,6 @@ namespace RestApiInterface.Commands
     public record GetAllWellBeingDataCmd(
         DateOnly? StartDate,
         DateOnly? EndDate,
-        IList<(string Category, string Type)> DataTypes
+        IList<WellBeingCategoryAndType> CategoryAndTypes
     );
 }

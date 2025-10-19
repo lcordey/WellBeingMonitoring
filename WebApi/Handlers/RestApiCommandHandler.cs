@@ -27,7 +27,7 @@ namespace WebApi.Handlers
         public async Task<IEnumerable<WellBeingData>> GetAllWellBeingDataAsync(GetAllWellBeingDataCmd command)
         {
             _logger.LogInformation("GetAllWellBeingDataAsync called with command: {@Command}", command);
-            var result = await _repository.GetAllAsync(command.StartDate, command.EndDate, command.DataTypes);
+            var result = await _repository.GetAllAsync(command.StartDate, command.EndDate, command.CategoryAndTypes);
             _logger.LogInformation("GetAllWellBeingDataAsync returning {Count} records", result?.Count() ?? 0);
             return result!;
         }
@@ -43,7 +43,7 @@ namespace WebApi.Handlers
         public async Task DeleteWellBeingTypeAsync(DeleteWellBeingTypeCmd command)
         {
             _logger.LogInformation("DeleteWellBeingTypeAsync called with command: {@Command}", command);
-            await _repository.DeleteWellBeingTypeAsync(command.Category, command.Type);
+            await _repository.DeleteWellBeingTypeAsync(command.CategoryAndType);
             _logger.LogInformation("DeleteWellBeingTypeAsync completed");
         }
 
@@ -77,7 +77,7 @@ namespace WebApi.Handlers
             return result;
         }
 
-        public async Task<IReadOnlyList<WellBeingCategoryTypes>> GetWellBeingCategoriesAndTypesAsync()
+        public async Task<IReadOnlyList<WellBeingCategoryAndType>> GetWellBeingCategoriesAndTypesAsync()
         {
             _logger.LogInformation("GetWellBeingCategoriesAndTypesAsync called");
             var result = await _repository.GetAllCategoriesAndTypesAsync();

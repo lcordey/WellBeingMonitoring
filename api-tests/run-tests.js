@@ -1,14 +1,10 @@
 #!/usr/bin/env node
 const { spawn } = require('child_process');
 
-const BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:5290';
-const PROJECT_PATH = process.env.API_PROJECT_PATH ?? 'WebApi';
-const SERVER_START_TIMEOUT_MS = 20000;
+const BASE_URL = process.env.API_BASE_URL ?? 'http://localhost:5000';
 
 async function main() {
-  const server = startServer();
   try {
-    await waitForServerReady(server.process);
     const results = await runApiTests();
     printSummary(results);
     if (results.some(r => !r.success)) {
@@ -17,73 +13,7 @@ async function main() {
   } catch (error) {
     console.error('\n❌ Test suite failed to run:', error.message);
     process.exitCode = 1;
-  } finally {
-    await shutdownServer(server);
   }
-}
-
-function startServer() {
-  const env = {
-    ...process.env,
-    UseInMemoryDatabase: 'true',
-    ASPNETCORE_ENVIRONMENT: process.env.ASPNETCORE_ENVIRONMENT ?? 'Development'
-  };
-
-  const args = ['run', '--project', PROJECT_PATH, '--urls', BASE_URL];
-  const dotnet = spawn('dotnet', args, { env });
-
-  dotnet.on('error', (error) => {
-    console.error(`\n❌ Failed to start dotnet process: ${error.message}`);
-  });
-
-  dotnet.stdout.on('data', (data) => {
-    process.stdout.write(`[api] ${data}`);
-  });
-  dotnet.stderr.on('data', (data) => {
-    process.stderr.write(`[api-err] ${data}`);
-  });
-
-  return { process: dotnet };
-}
-
-function waitForServerReady(serverProcess) {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error('Timed out waiting for the API to start.'));
-    }, SERVER_START_TIMEOUT_MS);
-
-    serverProcess.stdout.on('data', (data) => {
-      if (data.toString().includes('Application started')) {
-        clearTimeout(timeout);
-        resolve();
-      }
-    });
-
-    serverProcess.on('error', (error) => {
-      clearTimeout(timeout);
-      reject(new Error(`Failed to start API process: ${error.message}`));
-    });
-
-    serverProcess.on('exit', (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`API process exited early with code ${code}`));
-    });
-  });
-}
-
-async function shutdownServer(server) {
-  if (!server?.process) {
-    return;
-  }
-  return new Promise((resolve) => {
-    server.process.once('exit', () => resolve());
-    server.process.kill('SIGINT');
-    setTimeout(() => {
-      if (!server.process.killed) {
-        server.process.kill('SIGKILL');
-      }
-    }, 2000);
-  });
 }
 
 async function runApiTests() {
@@ -130,6 +60,8 @@ async function runApiTests() {
         if (!Array.isArray(response.data) || response.data.length === 0) {
           return failed('No definitions returned.');
         }
+        // Log the definitions found
+        // console.log('Definitions returned:', JSON.stringify(response.data, null, 2));
         const mood = response.data.find((item) => item.type?.toLowerCase() === 'mood');
         if (!mood) {
           return failed('Mood type missing from definitions.');
@@ -167,7 +99,7 @@ async function runApiTests() {
       request: () => postJson('/command/getAll', {
         startDate: '2024-01-01',
         endDate: '2024-12-31',
-        dataTypes: [
+        categoryAndTypes: [
           { category: 'observation', type: 'mood' }
         ]
       }),
@@ -211,8 +143,10 @@ async function runApiTests() {
     {
       name: 'Delete well-being type',
       request: () => postJson('/command/deleteWBType', {
-        category: 'observation',
-        type: 'mood'
+        categoryAndType: {
+          category: 'observation',
+          type: 'mood'
+        }
       }),
       validate: (response) => validateOk(response, 'Type deleted successfully')
     },
@@ -225,10 +159,14 @@ async function runApiTests() {
         if (!response.ok) {
           return failed(`Unexpected status code ${response.status}`);
         }
-        if (Array.isArray(response.data) && response.data.length === 0) {
-          return passed('Definitions successfully removed');
+        if (Array.isArray(response.data)) {
+          const mood = response.data.find((item) => item.type?.toLowerCase() === 'mood');
+          if (!mood) {
+            return passed('Mood definition successfully removed');
+          }
+          return failed('Mood definition was not removed as expected.');
         }
-        return failed('Definitions were not removed as expected.');
+        return failed('Unexpected response format.');
       }
     }
   ];
