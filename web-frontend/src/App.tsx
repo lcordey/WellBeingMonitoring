@@ -69,8 +69,7 @@ function App() {
       });
   }, [selectedDate]);
 
-  useEffect(() => {
-    if (mode !== 'calendar') return;
+  const refreshCalendarData = useCallback(() => {
     const startDate = new Date(calendarYear, calendarMonth, 1);
     const endDate = new Date(calendarYear, calendarMonth + 1, 0);
     const startDateStr = startDate.toISOString().slice(0, 10);
@@ -103,13 +102,25 @@ function App() {
       .finally(() => {
         setCalendarLoading(false);
       });
-  }, [mode, calendarYear, calendarMonth]);
+  }, [calendarYear, calendarMonth]);
+
+  useEffect(() => {
+    if (mode !== 'calendar') return;
+    refreshCalendarData();
+  }, [mode, refreshCalendarData]);
 
   useEffect(() => {
     if (mode === 'calendar' && selectedDate) {
       refreshSelectedDateEntries();
     }
   }, [mode, selectedDate, refreshSelectedDateEntries]);
+
+  const handleEntryDeleted = useCallback(() => {
+    refreshSelectedDateEntries();
+    if (mode === 'calendar') {
+      refreshCalendarData();
+    }
+  }, [mode, refreshCalendarData, refreshSelectedDateEntries]);
 
   return (
     <div className="App">
@@ -151,6 +162,7 @@ function App() {
             isLoading={selectedDateLoading}
             error={selectedDateError}
             onRefresh={refreshSelectedDateEntries}
+            onEntryDeleted={handleEntryDeleted}
           />
         </>
       ) : mode === 'entry' ? (

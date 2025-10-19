@@ -24,6 +24,13 @@ namespace WebApi.Handlers
             _logger.LogInformation("SetWellBeingDataAsync completed");
         }
 
+        public async Task DeleteWellBeingDataAsync(DeleteWellBeingDataCmd command)
+        {
+            _logger.LogInformation("DeleteWellBeingDataAsync called with command: {@Command}", command);
+            await _repository.RemoveAsync(command.Date, command.Category, command.Type);
+            _logger.LogInformation("DeleteWellBeingDataAsync completed");
+        }
+
         public async Task<IEnumerable<WellBeingData>> GetAllWellBeingDataAsync(GetAllWellBeingDataCmd command)
         {
             _logger.LogInformation("GetAllWellBeingDataAsync called with command: {@Command}", command);
