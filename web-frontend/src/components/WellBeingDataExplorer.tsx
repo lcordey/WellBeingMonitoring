@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  deleteWellBeingData,
   getAllWellBeingData,
   getWellBeingDefinitions,
   type WellBeingEntry,
@@ -39,6 +40,8 @@ export const WellBeingDataExplorer: React.FC = () => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [query, setQuery] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [notableValuesMap, setNotableValuesMap] = useState<NotableValuesMap>({});
 
   const updateNotableValues = useCallback(async (entriesList: WellBeingEntry[]) => {
@@ -70,9 +73,10 @@ export const WellBeingDataExplorer: React.FC = () => {
     setNotableValuesMap(buildNotableValuesMap(definitionsResults));
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setDeleteError(null);
     try {
       const response = await getAllWellBeingData({
         startDate,
@@ -86,12 +90,37 @@ export const WellBeingDataExplorer: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate, updateNotableValues]);
+
+  const handleDelete = useCallback(
+    async (entry: WellBeingEntry) => {
+      if (!window.confirm('Delete this entry? This action cannot be undone.')) {
+        return;
+      }
+
+      const key = `${entry.date}|${entry.category}|${entry.type}`;
+      setDeletingKey(key);
+      setDeleteError(null);
+      try {
+        await deleteWellBeingData({
+          date: entry.date,
+          category: entry.category,
+          type: entry.type,
+        });
+        await fetchData();
+      } catch (err: unknown) {
+        const message = getErrorMessage(err, 'Unable to delete the entry.');
+        setDeleteError(message);
+      } finally {
+        setDeletingKey(null);
+      }
+    },
+    [fetchData]
+  );
 
   useEffect(() => {
     void fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchData]);
 
   const categoryOptions = useMemo<ChipOption[]>(() => {
     const map = new Map<string, string>();
@@ -248,45 +277,60 @@ export const WellBeingDataExplorer: React.FC = () => {
                   <th>Category</th>
                   <th>Type</th>
                   <th>Values</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredEntries.map((entry, index) => (
-                  <tr key={`${entry.date}-${entry.category}-${entry.type}-${index}`}>
-                    <td>{new Date(entry.date).toLocaleDateString()}</td>
-                    <td>{formatLabel(entry.category)}</td>
-                    <td>{entry.type}</td>
-                    <td>
-                      {entry.values.length ? (
-                        <div className="data-explorer__value-group">
-                          {entry.values.map((value, valueIndex) => {
-                            const notable = isValueNotable(
-                              notableValuesMap,
-                              entry.category,
-                              entry.type,
-                              value
-                            );
-                            return (
-                              <span
-                                key={`${value}-${valueIndex}`}
-                                className={`value-pill${notable ? ' value-pill--notable' : ''}`}
-                              >
-                                {value}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {filteredEntries.map((entry, index) => {
+                  const deleteKey = `${entry.date}|${entry.category}|${entry.type}`;
+                  return (
+                    <tr key={`${entry.date}-${entry.category}-${entry.type}-${index}`}>
+                      <td>{new Date(entry.date).toLocaleDateString()}</td>
+                      <td>{formatLabel(entry.category)}</td>
+                      <td>{entry.type}</td>
+                      <td>
+                        {entry.values.length ? (
+                          <div className="data-explorer__value-group">
+                            {entry.values.map((value, valueIndex) => {
+                              const notable = isValueNotable(
+                                notableValuesMap,
+                                entry.category,
+                                entry.type,
+                                value
+                              );
+                              return (
+                                <span
+                                  key={`${value}-${valueIndex}`}
+                                  className={`value-pill${notable ? ' value-pill--notable' : ''}`}
+                                >
+                                  {value}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="data-explorer__delete"
+                          onClick={() => handleDelete(entry)}
+                          disabled={loading || deletingKey === deleteKey}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </section>
+      {deleteError && <div className="data-explorer__error">{deleteError}</div>}
     </div>
   );
 };
