@@ -73,6 +73,16 @@ export const WellBeingAdminPage: React.FC = () => {
   }, [deleteTypeCategory, knownCategories, valueCategory]);
 
   useEffect(() => {
+    if (knownCategories.length === 0) {
+      setDefinitionsCategory('');
+      return;
+    }
+    if (!knownCategories.includes(definitionsCategory)) {
+      setDefinitionsCategory(knownCategories[0]);
+    }
+  }, [definitionsCategory, knownCategories]);
+
+  useEffect(() => {
     if (!FIXED_CATEGORIES.includes(newTypeCategory)) {
       setNewTypeCategory(FIXED_CATEGORIES[0]);
     }
@@ -296,22 +306,29 @@ export const WellBeingAdminPage: React.FC = () => {
         <div className="definitions-manager__form-grid">
           <label>
             Category
-            <input
-              list="definitions-category-options"
+            <select
               value={definitionsCategory}
               onChange={(event) => setDefinitionsCategory(event.target.value)}
-              placeholder="e.g. observation"
-            />
-            <datalist id="definitions-category-options">
-              {knownCategories.map((option) => (
-                <option key={option} value={option} />
-              ))}
-            </datalist>
+              disabled={knownCategories.length === 0}
+            >
+              {knownCategories.length === 0 ? (
+                <option value="">No categories available</option>
+              ) : (
+                knownCategories.map((option) => (
+                  <option key={option} value={option}>
+                    {formatLabel(option)}
+                  </option>
+                ))
+              )}
+            </select>
           </label>
           <button
             type="button"
             onClick={handleFetchDefinitions}
-            disabled={loadingCategoryKey === normaliseKey(definitionsCategory)}
+            disabled={
+              !definitionsCategory.trim() ||
+              loadingCategoryKey === normaliseKey(definitionsCategory)
+            }
           >
             Load definitions
           </button>
@@ -420,79 +437,87 @@ export const WellBeingAdminPage: React.FC = () => {
 
       <section className="definitions-manager__section">
         <h3>Manage values</h3>
-        <div className="definitions-manager__form-grid">
-          <label>
-            Category
-            <select
-              value={valueCategory}
-              onChange={(event) => {
-                setValueCategory(event.target.value);
-                setValueTypeName('');
+        <div className="definitions-manager__form-grid definitions-manager__form-grid--values">
+          <div className="definitions-manager__form-row definitions-manager__form-row--two">
+            <label>
+              Category
+              <select
+                value={valueCategory}
+                onChange={(event) => {
+                  setValueCategory(event.target.value);
+                  setValueTypeName('');
+                  setRemoveValueName('');
+                }}
+              >
+                {knownCategories.map((option) => (
+                  <option key={option} value={option}>
+                    {formatLabel(option)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Type
+              <select value={valueTypeName} onChange={(event) => {
+                setValueTypeName(event.target.value);
                 setRemoveValueName('');
-              }}
+              }}>
+                <option value="">Select a type</option>
+                {valueCategoryDefinitions.map((definition) => (
+                  <option key={definition.type} value={definition.type}>
+                    {definition.type}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="definitions-manager__form-row definitions-manager__form-row--three">
+            <label>
+              New value
+              <input
+                value={valueName}
+                onChange={(event) => setValueName(event.target.value)}
+                placeholder="Value"
+              />
+            </label>
+            <label className="definitions-manager__checkbox">
+              <input
+                type="checkbox"
+                checked={valueNotable}
+                onChange={(event) => setValueNotable(event.target.checked)}
+              />
+              Mark as notable
+            </label>
+            <button
+              type="button"
+              onClick={handleAddValue}
+              disabled={!valueCategory.trim() || !valueTypeName.trim() || !valueName.trim()}
             >
-              {knownCategories.map((option) => (
-                <option key={option} value={option}>
-                  {formatLabel(option)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Type
-            <select value={valueTypeName} onChange={(event) => {
-              setValueTypeName(event.target.value);
-              setRemoveValueName('');
-            }}>
-              <option value="">Select a type</option>
-              {valueCategoryDefinitions.map((definition) => (
-                <option key={definition.type} value={definition.type}>
-                  {definition.type}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            New value
-            <input
-              value={valueName}
-              onChange={(event) => setValueName(event.target.value)}
-              placeholder="Value"
-            />
-          </label>
-          <label className="definitions-manager__checkbox">
-            <input
-              type="checkbox"
-              checked={valueNotable}
-              onChange={(event) => setValueNotable(event.target.checked)}
-            />
-            Mark as notable
-          </label>
-          <button
-            type="button"
-            onClick={handleAddValue}
-            disabled={!valueCategory.trim() || !valueTypeName.trim() || !valueName.trim()}
-          >
-            Add value
-          </button>
-          <label>
-            Remove value
-            <select value={removeValueName} onChange={(event) => setRemoveValueName(event.target.value)}>
-              <option value="">Select a value</option>
-              {availableValuesForType.map((value) => (
-                <option key={value.value} value={value.value}>
-                  {value.value}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={handleRemoveValue}
-            disabled={!valueCategory.trim() || !valueTypeName.trim() || !removeValueName.trim()}
-          >
-            Delete value
-          </button>
+              Add value
+            </button>
+          </div>
+
+          <div className="definitions-manager__form-row definitions-manager__form-row--two">
+            <label>
+              Remove value
+              <select value={removeValueName} onChange={(event) => setRemoveValueName(event.target.value)}>
+                <option value="">Select a value</option>
+                {availableValuesForType.map((value) => (
+                  <option key={value.value} value={value.value}>
+                    {value.value}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={handleRemoveValue}
+              disabled={!valueCategory.trim() || !valueTypeName.trim() || !removeValueName.trim()}
+            >
+              Delete value
+            </button>
+          </div>
         </div>
       </section>
 

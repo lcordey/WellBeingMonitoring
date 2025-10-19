@@ -719,6 +719,26 @@
   box-shadow: none;
 }
 
+.definitions-manager__form-grid--values {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.definitions-manager__form-row {
+  display: grid;
+  gap: 14px;
+  align-items: end;
+}
+
+.definitions-manager__form-row--two {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.definitions-manager__form-row--three {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
 .definitions-manager__checkbox {
   display: flex;
   align-items: center;
