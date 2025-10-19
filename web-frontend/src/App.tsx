@@ -7,6 +7,12 @@ import { SelectedDateDetails } from './components/SelectedDateDetails';
 import { WellBeingAdminPage } from './components/WellBeingAdminPage';
 import { WellBeingDataEntry } from './components/WellBeingDataEntry';
 import { getAllWellBeingData, type WellBeingEntry } from './api';
+import {
+  fetchNotableLookup,
+  hasNotableValue,
+  normaliseCategoryKey,
+  type NotableValueLookup,
+} from './utils/notable';
 
 const VIEW_OPTIONS = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -20,7 +26,7 @@ type ViewMode = (typeof VIEW_OPTIONS)[number]['key'];
 
 const colorPalette = ['#2563eb', '#dc2626', '#0ea5e9', '#f59e0b', '#10b981', '#8b5cf6', '#f97316', '#9333ea'];
 
-const normaliseCategory = (value: string) => value.trim().toLowerCase();
+const normaliseCategory = normaliseCategoryKey;
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
@@ -69,7 +75,7 @@ function App() {
       });
   }, [selectedDate]);
 
-  const refreshCalendarData = useCallback(() => {
+  const refreshCalendarData = useCallback(async () => {
     const startDate = new Date(calendarYear, calendarMonth, 1);
     const endDate = new Date(calendarYear, calendarMonth + 1, 0);
     const startDateStr = startDate.toISOString().slice(0, 10);
@@ -77,36 +83,61 @@ function App() {
 
     setCalendarLoading(true);
     setCalendarError(null);
-    getAllWellBeingData({ startDate: startDateStr, endDate: endDateStr })
-      .then((data) => {
-        const map: Record<string, string[]> = {};
-        const labelsUpdate: Record<string, string> = {};
-        data.forEach((entry) => {
-          const dateKey = entry.date.slice(0, 10);
-          const categoryKey = normaliseCategory(entry.category);
-          labelsUpdate[categoryKey] = entry.category;
-          if (!map[dateKey]) {
-            map[dateKey] = [];
-          }
-          if (!map[dateKey].includes(categoryKey)) {
-            map[dateKey].push(categoryKey);
-          }
-        });
-        setDateCategoriesMap(map);
-        setCategoryLabels((prev) => ({ ...prev, ...labelsUpdate }));
-      })
-      .catch((error: unknown) => {
-        setDateCategoriesMap({});
-        setCalendarError(getErrorMessage(error, 'Unable to load calendar data.'));
-      })
-      .finally(() => {
-        setCalendarLoading(false);
+    try {
+      const data = await getAllWellBeingData({ startDate: startDateStr, endDate: endDateStr });
+
+      const labelsUpdate: Record<string, string> = {};
+      data.forEach((entry) => {
+        const categoryKey = normaliseCategory(entry.category);
+        labelsUpdate[categoryKey] = entry.category;
       });
+
+      const relevantEntries = data.filter((entry) => {
+        const categoryKey = normaliseCategory(entry.category);
+        return categoryKey === 'observation' || categoryKey === 'symptom';
+      });
+
+      let notableLookup: NotableValueLookup = {};
+      if (relevantEntries.length > 0) {
+        try {
+          notableLookup = await fetchNotableLookup(relevantEntries);
+        } catch (error) {
+          console.error('Unable to compute notable values for the calendar view', error);
+        }
+      }
+
+      const dateCategoryNotable = new Map<string, Set<string>>();
+      relevantEntries.forEach((entry) => {
+        if (!hasNotableValue(entry, notableLookup)) {
+          return;
+        }
+        const dateKey = entry.date.slice(0, 10);
+        const categoryKey = normaliseCategory(entry.category);
+        const set = dateCategoryNotable.get(dateKey) ?? new Set<string>();
+        set.add(categoryKey);
+        dateCategoryNotable.set(dateKey, set);
+      });
+
+      const map: Record<string, string[]> = {};
+      dateCategoryNotable.forEach((set, dateKey) => {
+        if (set.has('observation') && set.has('symptom')) {
+          map[dateKey] = Array.from(set).sort();
+        }
+      });
+
+      setDateCategoriesMap(map);
+      setCategoryLabels((prev) => ({ ...prev, ...labelsUpdate }));
+    } catch (error: unknown) {
+      setDateCategoriesMap({});
+      setCalendarError(getErrorMessage(error, 'Unable to load calendar data.'));
+    } finally {
+      setCalendarLoading(false);
+    }
   }, [calendarYear, calendarMonth]);
 
   useEffect(() => {
     if (mode !== 'calendar') return;
-    refreshCalendarData();
+    void refreshCalendarData();
   }, [mode, refreshCalendarData]);
 
   useEffect(() => {

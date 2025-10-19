@@ -121,7 +121,7 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
         <div>
           <h2>Monthly activity</h2>
           <p className="calendar__subtitle">
-            Highlighted days show recorded data. Select a day to explore its details.
+            Highlighted days indicate dates with notable observations and symptoms captured together.
           </p>
         </div>
         <div className="calendar__navigation">

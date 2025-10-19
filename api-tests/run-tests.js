@@ -118,6 +118,56 @@ async function runApiTests() {
       }
     },
     {
+      name: 'Retrieve categories and types catalogue',
+      request: () => getJson('/command/catalogue'),
+      validate: (response) => {
+        if (!response.ok) {
+          return failed(`Unexpected status code ${response.status}`);
+        }
+        if (!Array.isArray(response.data) || response.data.length === 0) {
+          return failed('Categories catalogue is empty.');
+        }
+        const observation = response.data.find((item) =>
+          item.category?.toLowerCase() === 'observation'
+        );
+        if (!observation) {
+          return failed('Observation category missing from catalogue.');
+        }
+        if (!Array.isArray(observation.types) || !observation.types.includes('mood')) {
+          return failed('Mood type missing from observation catalogue.');
+        }
+        return passed('Catalogue retrieved successfully');
+      }
+    },
+    {
+      name: 'Delete well-being data entry',
+      request: () => postJson('/command/deleteWBData', {
+        date: '2024-01-10',
+        category: 'observation',
+        type: 'mood'
+      }),
+      validate: (response) => validateOk(response, 'Data entry deleted successfully')
+    },
+    {
+      name: 'Verify well-being data entry removed',
+      request: () => postJson('/command/getAll', {
+        startDate: '2024-01-01',
+        endDate: '2024-12-31',
+        categoryAndTypes: [
+          { category: 'observation', type: 'mood' }
+        ]
+      }),
+      validate: (response) => {
+        if (!response.ok) {
+          return failed(`Unexpected status code ${response.status}`);
+        }
+        if (Array.isArray(response.data) && response.data.length === 0) {
+          return passed('Well-being data entry deleted successfully');
+        }
+        return failed('Well-being data entry still present after deletion.');
+      }
+    },
+    {
       name: 'Delete well-being value',
       request: () => postJson('/command/deleteWBValue', {
         type: 'mood',
@@ -198,6 +248,28 @@ async function postJson(path, payload) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(payload)
+  });
+
+  const text = await response.text();
+  let data;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (error) {
+      data = text;
+    }
+  }
+
+  return { ok: response.ok, status: response.status, data };
+}
+
+async function getJson(path) {
+  const url = `${BASE_URL}${path}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
   });
 
   const text = await response.text();
