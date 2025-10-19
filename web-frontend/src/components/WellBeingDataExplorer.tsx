@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { deleteWellBeingData, getAllWellBeingData, type WellBeingEntry } from '../api';
+import {
+  fetchNotableLookup,
+  splitEntryValues,
+  type NotableValueLookup,
+} from '../utils/notable';
 
 const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
 const toCategoryKey = (value: string) => value.trim().toLowerCase();
@@ -32,6 +37,7 @@ export const WellBeingDataExplorer: React.FC = () => {
   const [query, setQuery] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [notableLookup, setNotableLookup] = useState<NotableValueLookup>({});
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,6 +55,35 @@ export const WellBeingDataExplorer: React.FC = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!entries.length) {
+      setNotableLookup({});
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    (async () => {
+      try {
+        const lookup = await fetchNotableLookup(entries);
+        if (!cancelled) {
+          setNotableLookup(lookup);
+        }
+      } catch (error) {
+        console.error('Unable to load notable values for explorer view', error);
+        if (!cancelled) {
+          setNotableLookup({});
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entries]);
 
   const handleDelete = async (entry: WellBeingEntry) => {
     if (!window.confirm('Delete this entry? This action cannot be undone.')) {
@@ -237,24 +272,52 @@ export const WellBeingDataExplorer: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredEntries.map((entry, index) => (
-                  <tr key={`${entry.date}-${entry.category}-${entry.type}-${index}`}>
-                    <td>{new Date(entry.date).toLocaleDateString()}</td>
-                    <td>{formatLabel(entry.category)}</td>
-                    <td>{entry.type}</td>
-                    <td>{entry.values.length ? entry.values.join(', ') : '—'}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="data-explorer__delete"
-                        onClick={() => handleDelete(entry)}
-                        disabled={loading || deletingKey === `${entry.date}|${entry.category}|${entry.type}`}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredEntries.map((entry, index) => {
+                  const split = splitEntryValues(entry, notableLookup);
+                  const hasValues =
+                    split.notableValues.length + split.regularValues.length > 0;
+
+                  return (
+                    <tr key={`${entry.date}-${entry.category}-${entry.type}-${index}`}>
+                      <td>{new Date(entry.date).toLocaleDateString()}</td>
+                      <td>{formatLabel(entry.category)}</td>
+                      <td>{entry.type}</td>
+                      <td>
+                        <div className="data-explorer__values">
+                          {split.notableValues.map((value, valueIndex) => (
+                            <span
+                              key={`${entry.date}-${entry.category}-${entry.type}-notable-${valueIndex}`}
+                              className="data-explorer__value-pill data-explorer__value-pill--notable"
+                            >
+                              {value}
+                            </span>
+                          ))}
+                          {split.regularValues.map((value, valueIndex) => (
+                            <span
+                              key={`${entry.date}-${entry.category}-${entry.type}-regular-${valueIndex}`}
+                              className="data-explorer__value-pill"
+                            >
+                              {value}
+                            </span>
+                          ))}
+                          {!hasValues && (
+                            <span className="data-explorer__value-pill data-explorer__value-pill--empty">—</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="data-explorer__delete"
+                          onClick={() => handleDelete(entry)}
+                          disabled={loading || deletingKey === `${entry.date}|${entry.category}|${entry.type}`}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
