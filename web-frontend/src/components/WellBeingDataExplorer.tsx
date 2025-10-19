@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getAllWellBeingData, type WellBeingEntry } from '../api';
+import { deleteWellBeingData, getAllWellBeingData, type WellBeingEntry } from '../api';
 
 const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
 const toCategoryKey = (value: string) => value.trim().toLowerCase();
@@ -30,10 +30,13 @@ export const WellBeingDataExplorer: React.FC = () => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [query, setQuery] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     setError(null);
+    setDeleteError(null);
     try {
       const response = await getAllWellBeingData({
         startDate,
@@ -44,6 +47,29 @@ export const WellBeingDataExplorer: React.FC = () => {
       setError(getErrorMessage(err, 'Unable to retrieve data.'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (entry: WellBeingEntry) => {
+    if (!window.confirm('Delete this entry? This action cannot be undone.')) {
+      return;
+    }
+
+    const key = `${entry.date}|${entry.category}|${entry.type}`;
+    setDeletingKey(key);
+    setDeleteError(null);
+    try {
+      await deleteWellBeingData({
+        date: entry.date,
+        category: entry.category,
+        type: entry.type,
+      });
+      await fetchData();
+    } catch (err: unknown) {
+      const message = getErrorMessage(err, 'Unable to delete the entry.');
+      setDeleteError(message);
+    } finally {
+      setDeletingKey(null);
     }
   };
 
@@ -207,6 +233,7 @@ export const WellBeingDataExplorer: React.FC = () => {
                   <th>Category</th>
                   <th>Type</th>
                   <th>Values</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -216,6 +243,16 @@ export const WellBeingDataExplorer: React.FC = () => {
                     <td>{formatLabel(entry.category)}</td>
                     <td>{entry.type}</td>
                     <td>{entry.values.length ? entry.values.join(', ') : '—'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="data-explorer__delete"
+                        onClick={() => handleDelete(entry)}
+                        disabled={loading || deletingKey === `${entry.date}|${entry.category}|${entry.type}`}
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -223,6 +260,7 @@ export const WellBeingDataExplorer: React.FC = () => {
           </div>
         )}
       </section>
+      {deleteError && <div className="data-explorer__error">{deleteError}</div>}
     </div>
   );
 };
