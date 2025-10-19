@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addWellBeingData,
   getWellBeingCategoryTypes,
@@ -38,6 +38,8 @@ export const WellBeingDataEntry: React.FC = () => {
   const [loadingDefinitions, setLoadingDefinitions] = useState(false);
   const [loadingCatalogue, setLoadingCatalogue] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const loadingCatalogueRef = useRef(false);
+  const loadingDefinitionsRef = useRef(false);
 
   const categoryKey = normaliseKey(category);
 
@@ -89,7 +91,10 @@ export const WellBeingDataEntry: React.FC = () => {
   );
 
   const refreshCatalogue = useCallback(async () => {
-    if (loadingCatalogue) return;
+    if (loadingCatalogueRef.current) {
+      return;
+    }
+    loadingCatalogueRef.current = true;
     setLoadingCatalogue(true);
     setError(null);
     try {
@@ -122,19 +127,25 @@ export const WellBeingDataEntry: React.FC = () => {
         )
       );
     } finally {
+      loadingCatalogueRef.current = false;
       setLoadingCatalogue(false);
     }
-  }, [loadingCatalogue]);
+  }, []);
 
   const fetchDefinitions = useCallback(
     async (categoryName: string) => {
-      const key = normaliseKey(categoryName);
-      if (loadingDefinitions) return;
+      const trimmedCategory = categoryName.trim();
+      if (!trimmedCategory) {
+        return;
+      }
+      const key = normaliseKey(trimmedCategory);
+      if (loadingDefinitionsRef.current) return;
       setLoadingDefinitions(true);
       setError(null);
+      loadingDefinitionsRef.current = true;
       try {
-        const definitions = await getWellBeingDefinitions(categoryName);
-        const label = definitions[0]?.category ?? categoryName;
+        const definitions = await getWellBeingDefinitions(trimmedCategory);
+        const label = definitions[0]?.category ?? trimmedCategory;
         setDefinitionsByCategory((prev) => ({
           ...prev,
           [key]: {
@@ -145,10 +156,11 @@ export const WellBeingDataEntry: React.FC = () => {
       } catch (err: unknown) {
         setError(getErrorMessage(err, 'Unable to load definitions for the category.'));
       } finally {
+        loadingDefinitionsRef.current = false;
         setLoadingDefinitions(false);
       }
     },
-    [loadingDefinitions]
+    []
   );
 
   useEffect(() => {

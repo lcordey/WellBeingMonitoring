@@ -25,6 +25,8 @@ const formatLabel = (value: string) =>
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
+const FIXED_CATEGORIES: string[] = ['observation', 'symptom'];
+
 export const WellBeingAdminPage: React.FC = () => {
   const [definitionsByCategory, setDefinitionsByCategory] = useState<CategoryDictionary>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -48,13 +50,20 @@ export const WellBeingAdminPage: React.FC = () => {
 
   const knownCategories = useMemo(() => {
     const map = new Map<string, string>();
-    map.set(normaliseKey('observation'), 'observation');
-    map.set(normaliseKey('symptom'), 'symptom');
+    FIXED_CATEGORIES.forEach((category) => {
+      map.set(normaliseKey(category), category);
+    });
     Object.values(definitionsByCategory).forEach((entry) => {
       map.set(normaliseKey(entry.label), entry.label);
     });
     return Array.from(new Set(map.values())).sort();
   }, [definitionsByCategory]);
+
+  useEffect(() => {
+    if (!FIXED_CATEGORIES.includes(newTypeCategory)) {
+      setNewTypeCategory(FIXED_CATEGORIES[0]);
+    }
+  }, [newTypeCategory]);
 
   const allTypeOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -143,6 +152,11 @@ export const WellBeingAdminPage: React.FC = () => {
     const category = newTypeCategory.trim();
     const type = newTypeName.trim();
     if (!category || !type) return;
+    if (!FIXED_CATEGORIES.includes(category)) {
+      setMessage(null);
+      setError('The selected category is not supported.');
+      return;
+    }
     setMessage(null);
     setError(null);
     try {
@@ -313,11 +327,13 @@ export const WellBeingAdminPage: React.FC = () => {
         <div className="definitions-manager__form-grid">
           <label>
             Category
-            <input
-              value={newTypeCategory}
-              onChange={(event) => setNewTypeCategory(event.target.value)}
-              placeholder="Category"
-            />
+            <select value={newTypeCategory} onChange={(event) => setNewTypeCategory(event.target.value)}>
+              {FIXED_CATEGORIES.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Type name
