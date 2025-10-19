@@ -74,21 +74,30 @@ namespace WebApi.DataBase
             DateOnly? endDate,
             IList<WellBeingCategoryAndType> categoryAndTypes)
         {
-            _logger.LogInformation("GetAllAsync called with startDate: {StartDate}, endDate: {EndDate}, dataTypes count: {Count}", startDate, endDate, categoryAndTypes?.Count ?? 0);
-            if(categoryAndTypes == null || categoryAndTypes.Count == 0)
+            var hasCategoryFilters = categoryAndTypes != null && categoryAndTypes.Count > 0;
+            _logger.LogInformation(
+                "GetAllAsync called with startDate: {StartDate}, endDate: {EndDate}, dataTypes count: {Count}",
+                startDate,
+                endDate,
+                categoryAndTypes?.Count ?? 0
+            );
+            if (!hasCategoryFilters)
             {
-                _logger.LogInformation("No categoryAndTypes provided, returning empty list");
-                return new List<WellBeingData>();
+                _logger.LogInformation("No category filters provided. Returning all records that match the date filters only.");
             }
 
             var allData = await GetAllDataFromDbAsync();
-            _logger.LogInformation("\nFirst type {} and category {}", categoryAndTypes!.FirstOrDefault()?.Type, categoryAndTypes!.FirstOrDefault()?.Category);
+            var firstFilter = categoryAndTypes?.FirstOrDefault();
+            _logger.LogInformation("\nFirst type {} and category {}", firstFilter?.Type, firstFilter?.Category);
             var filtered = allData.Where(data =>
                 (!startDate.HasValue || data.Date >= startDate.Value) &&
                 (!endDate.HasValue || data.Date <= endDate.Value) &&
                 (
-                    categoryAndTypes!.Any(expectedData => string.Equals(data.Category, expectedData.Category, StringComparison.OrdinalIgnoreCase) &&
-                                        string.Equals(data.Type, expectedData.Type, StringComparison.OrdinalIgnoreCase))
+                    !hasCategoryFilters ||
+                    (categoryAndTypes != null &&
+                        categoryAndTypes.Any(expectedData =>
+                            string.Equals(data.Category, expectedData.Category, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(data.Type, expectedData.Type, StringComparison.OrdinalIgnoreCase)))
                 )
             );
             var resultList = filtered.ToList();
