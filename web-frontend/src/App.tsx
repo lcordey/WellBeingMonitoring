@@ -24,7 +24,7 @@ const VIEW_OPTIONS = [
 
 type ViewMode = (typeof VIEW_OPTIONS)[number]['key'];
 
-const colorPalette = ['#2563eb', '#dc2626', '#0ea5e9', '#f59e0b', '#10b981', '#8b5cf6', '#f97316', '#9333ea'];
+const colorPalette = ['#4338ca', '#6366f1', '#312e81', '#5b21b6', '#7c3aed', '#1d4ed8', '#3730a3', '#4c1d95'];
 
 const normaliseCategory = normaliseCategoryKey;
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -120,9 +120,7 @@ function App() {
 
       const map: Record<string, string[]> = {};
       dateCategoryNotable.forEach((set, dateKey) => {
-        if (set.has('observation') && set.has('symptom')) {
-          map[dateKey] = Array.from(set).sort();
-        }
+        map[dateKey] = Array.from(set).sort();
       });
 
       setDateCategoriesMap(map);

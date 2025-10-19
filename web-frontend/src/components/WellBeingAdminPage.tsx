@@ -39,6 +39,7 @@ export const WellBeingAdminPage: React.FC = () => {
   const [newTypeAllowMultiple, setNewTypeAllowMultiple] = useState(false);
   const [deleteTypeCategory, setDeleteTypeCategory] = useState('observation');
   const [deleteTypeName, setDeleteTypeName] = useState('');
+  const [valueCategory, setValueCategory] = useState('observation');
   const [valueTypeName, setValueTypeName] = useState('');
   const [valueName, setValueName] = useState('');
   const [valueNotable, setValueNotable] = useState(false);
@@ -58,6 +59,18 @@ export const WellBeingAdminPage: React.FC = () => {
     });
     return Array.from(new Set(map.values())).sort();
   }, [definitionsByCategory]);
+
+  useEffect(() => {
+    if (knownCategories.length === 0) {
+      return;
+    }
+    if (!knownCategories.includes(deleteTypeCategory)) {
+      setDeleteTypeCategory(knownCategories[0]);
+    }
+    if (!knownCategories.includes(valueCategory)) {
+      setValueCategory(knownCategories[0]);
+    }
+  }, [deleteTypeCategory, knownCategories, valueCategory]);
 
   useEffect(() => {
     if (!FIXED_CATEGORIES.includes(newTypeCategory)) {
@@ -87,23 +100,28 @@ export const WellBeingAdminPage: React.FC = () => {
     return definitionsByCategory[key]?.definitions ?? [];
   }, [definitionsByCategory, deleteTypeCategory]);
 
+  const valueCategoryDefinitions = useMemo(() => {
+    const key = normaliseKey(valueCategory);
+    return definitionsByCategory[key]?.definitions ?? [];
+  }, [definitionsByCategory, valueCategory]);
+
+  useEffect(() => {
+    if (!valueTypeName) {
+      return;
+    }
+    const exists = valueCategoryDefinitions.some(
+      (definition) => definition.type.trim().toLowerCase() === valueTypeName.trim().toLowerCase()
+    );
+    if (!exists) {
+      setValueTypeName('');
+      setRemoveValueName('');
+    }
+  }, [valueCategoryDefinitions, valueTypeName]);
+
   const definitionsForSelectedCategory = useMemo(() => {
     const key = normaliseKey(definitionsCategory);
     return definitionsByCategory[key]?.definitions ?? [];
   }, [definitionsByCategory, definitionsCategory]);
-
-  const findCategoryByType = (type: string) => {
-    const needle = type.trim().toLowerCase();
-    for (const [key, entry] of Object.entries(definitionsByCategory)) {
-      const match = entry.definitions.find(
-        (definition) => definition.type.trim().toLowerCase() === needle
-      );
-      if (match) {
-        return { key, label: entry.label };
-      }
-    }
-    return null;
-  };
 
   const fetchDefinitionsForCategory = useCallback(
     async (category: string) => {
@@ -141,6 +159,17 @@ export const WellBeingAdminPage: React.FC = () => {
     };
     void loadDefaults();
   }, [definitionsByCategory, fetchDefinitionsForCategory]);
+
+  useEffect(() => {
+    const trimmed = valueCategory.trim();
+    if (!trimmed) {
+      return;
+    }
+    const key = normaliseKey(trimmed);
+    if (!definitionsByCategory[key]) {
+      void fetchDefinitionsForCategory(trimmed);
+    }
+  }, [definitionsByCategory, fetchDefinitionsForCategory, valueCategory]);
 
   const handleFetchDefinitions = async () => {
     setMessage(null);
@@ -192,8 +221,9 @@ export const WellBeingAdminPage: React.FC = () => {
 
   const handleAddValue = async () => {
     const type = valueTypeName.trim();
+    const category = valueCategory.trim();
     const value = valueName.trim();
-    if (!type || !value) return;
+    if (!type || !value || !category) return;
     setMessage(null);
     setError(null);
     try {
@@ -201,10 +231,7 @@ export const WellBeingAdminPage: React.FC = () => {
       setMessage(`Value “${value}” added to ${type}.`);
       setValueName('');
       setValueNotable(false);
-      const categoryInfo = findCategoryByType(type);
-      if (categoryInfo) {
-        await fetchDefinitionsForCategory(categoryInfo.label);
-      }
+      await fetchDefinitionsForCategory(category);
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Unable to add the value.'));
     }
@@ -212,18 +239,16 @@ export const WellBeingAdminPage: React.FC = () => {
 
   const handleRemoveValue = async () => {
     const type = valueTypeName.trim();
+    const category = valueCategory.trim();
     const value = removeValueName.trim();
-    if (!type || !value) return;
+    if (!type || !value || !category) return;
     setMessage(null);
     setError(null);
     try {
       await deleteWellBeingValue({ type, value });
       setMessage(`Value “${value}” removed from ${type}.`);
       setRemoveValueName('');
-      const categoryInfo = findCategoryByType(type);
-      if (categoryInfo) {
-        await fetchDefinitionsForCategory(categoryInfo.label);
-      }
+      await fetchDefinitionsForCategory(category);
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Unable to remove the value.'));
     }
@@ -245,14 +270,16 @@ export const WellBeingAdminPage: React.FC = () => {
     }
   };
 
-  const availableValuesForType = (() => {
-    const info = findCategoryByType(valueTypeName);
-    if (!info) return [] as WellBeingDefinitionValue[];
-    const definition = definitionsByCategory[info.key]?.definitions.find(
-      (item) => item.type.trim().toLowerCase() === valueTypeName.trim().toLowerCase()
+  const availableValuesForType = useMemo(() => {
+    if (!valueTypeName.trim()) {
+      return [] as WellBeingDefinitionValue[];
+    }
+    const lower = valueTypeName.trim().toLowerCase();
+    const definition = valueCategoryDefinitions.find(
+      (item) => item.type.trim().toLowerCase() === lower
     );
     return definition?.values ?? [];
-  })();
+  }, [valueCategoryDefinitions, valueTypeName]);
 
   return (
     <div className="definitions-manager">
@@ -307,11 +334,15 @@ export const WellBeingAdminPage: React.FC = () => {
                 </div>
                 <ul className="definitions-manager__value-list">
                   {definition.values.length === 0 ? (
-                    <li>No values defined yet.</li>
+                    <li className="definitions-manager__value-empty">No values defined yet.</li>
                   ) : (
                     definition.values.map((value) => (
                       <li key={value.value}>
-                        {value.value} {value.noticeable && <em>(notable)</em>}
+                        <span
+                          className={`definitions-manager__value-pill${value.noticeable ? ' definitions-manager__value-pill--notable' : ''}`}
+                        >
+                          {value.value}
+                        </span>
                       </li>
                     ))
                   )}
@@ -362,11 +393,13 @@ export const WellBeingAdminPage: React.FC = () => {
         <div className="definitions-manager__form-grid">
           <label>
             Category
-            <input
-              value={deleteTypeCategory}
-              onChange={(event) => setDeleteTypeCategory(event.target.value)}
-              placeholder="Category"
-            />
+            <select value={deleteTypeCategory} onChange={(event) => setDeleteTypeCategory(event.target.value)}>
+              {knownCategories.map((option) => (
+                <option key={option} value={option}>
+                  {formatLabel(option)}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Type name
@@ -389,20 +422,35 @@ export const WellBeingAdminPage: React.FC = () => {
         <h3>Manage values</h3>
         <div className="definitions-manager__form-grid">
           <label>
-            Type
-            <input
-              list="definitions-type-options"
-              value={valueTypeName}
-              onChange={(event) => setValueTypeName(event.target.value)}
-              placeholder="Type name"
-            />
-            <datalist id="definitions-type-options">
-              {allTypeOptions.map((option) => (
-                <option key={option.type} value={option.type}>
-                  {option.label}
+            Category
+            <select
+              value={valueCategory}
+              onChange={(event) => {
+                setValueCategory(event.target.value);
+                setValueTypeName('');
+                setRemoveValueName('');
+              }}
+            >
+              {knownCategories.map((option) => (
+                <option key={option} value={option}>
+                  {formatLabel(option)}
                 </option>
               ))}
-            </datalist>
+            </select>
+          </label>
+          <label>
+            Type
+            <select value={valueTypeName} onChange={(event) => {
+              setValueTypeName(event.target.value);
+              setRemoveValueName('');
+            }}>
+              <option value="">Select a type</option>
+              {valueCategoryDefinitions.map((definition) => (
+                <option key={definition.type} value={definition.type}>
+                  {definition.type}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             New value
@@ -420,7 +468,11 @@ export const WellBeingAdminPage: React.FC = () => {
             />
             Mark as notable
           </label>
-          <button type="button" onClick={handleAddValue} disabled={!valueTypeName.trim() || !valueName.trim()}>
+          <button
+            type="button"
+            onClick={handleAddValue}
+            disabled={!valueCategory.trim() || !valueTypeName.trim() || !valueName.trim()}
+          >
             Add value
           </button>
           <label>
@@ -434,7 +486,11 @@ export const WellBeingAdminPage: React.FC = () => {
               ))}
             </select>
           </label>
-          <button type="button" onClick={handleRemoveValue} disabled={!valueTypeName.trim() || !removeValueName.trim()}>
+          <button
+            type="button"
+            onClick={handleRemoveValue}
+            disabled={!valueCategory.trim() || !valueTypeName.trim() || !removeValueName.trim()}
+          >
             Delete value
           </button>
         </div>
@@ -451,6 +507,13 @@ export const WellBeingAdminPage: React.FC = () => {
               onChange={(event) => setLookupType(event.target.value)}
               placeholder="Type name"
             />
+            <datalist id="definitions-type-options">
+              {allTypeOptions.map((option) => (
+                <option key={option.type} value={option.type}>
+                  {option.label}
+                </option>
+              ))}
+            </datalist>
           </label>
           <button type="button" onClick={handleLookupValues} disabled={lookupLoading || !lookupType.trim()}>
             Fetch values
@@ -459,10 +522,14 @@ export const WellBeingAdminPage: React.FC = () => {
         {lookupLoading && <p>Loading values…</p>}
         {lookupError && <div className="definitions-manager__error">{lookupError}</div>}
         {!lookupLoading && lookupValues.length > 0 && (
-          <ul className="definitions-manager__value-list definitions-manager__value-list--inline">
+          <ul className="definitions-manager__value-list">
             {lookupValues.map((value) => (
               <li key={value.value}>
-                {value.value} {value.noticeable && <em>(notable)</em>}
+                <span
+                  className={`definitions-manager__value-pill${value.noticeable ? ' definitions-manager__value-pill--notable' : ''}`}
+                >
+                  {value.value}
+                </span>
               </li>
             ))}
           </ul>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { deleteWellBeingData, getAllWellBeingData, type WellBeingEntry } from '../api';
 import {
   fetchNotableLookup,
@@ -7,6 +7,11 @@ import {
 } from '../utils/notable';
 
 const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
+const DEFAULT_START_DATE = '2025-01-01';
+const getDefaultEndDate = () => {
+  const today = toDateInputValue(new Date());
+  return today < DEFAULT_START_DATE ? DEFAULT_START_DATE : today;
+};
 const toCategoryKey = (value: string) => value.trim().toLowerCase();
 const toTypeKey = (entry: WellBeingEntry) =>
   `${toCategoryKey(entry.category)}|${entry.type.trim().toLowerCase()}`;
@@ -23,12 +28,8 @@ const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
 export const WellBeingDataExplorer: React.FC = () => {
-  const [startDate, setStartDate] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30);
-    return toDateInputValue(date);
-  });
-  const [endDate, setEndDate] = useState(() => toDateInputValue(new Date()));
+  const [startDate, setStartDate] = useState(DEFAULT_START_DATE);
+  const [endDate, setEndDate] = useState(() => getDefaultEndDate());
   const [entries, setEntries] = useState<WellBeingEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +40,7 @@ export const WellBeingDataExplorer: React.FC = () => {
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const [notableLookup, setNotableLookup] = useState<NotableValueLookup>({});
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     setDeleteError(null);
@@ -54,7 +55,7 @@ export const WellBeingDataExplorer: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,8 +111,7 @@ export const WellBeingDataExplorer: React.FC = () => {
 
   useEffect(() => {
     void fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchData]);
 
   const categoryOptions = useMemo<ChipOption[]>(() => {
     const map = new Map<string, string>();
