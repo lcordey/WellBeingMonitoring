@@ -242,7 +242,7 @@ namespace WebApi.DataBase
                 var values = row.TryGetValue("values_list", out var valuesValue) && valuesValue is string[] arr
                     ? arr
                     : Array.Empty<string>();
-                return new object[] { date!, category!, type!, values };
+                return [date!, category!, type!, values ];
             }
 
             if (tableName.Equals("entry_definitions", StringComparison.OrdinalIgnoreCase))
@@ -251,7 +251,7 @@ namespace WebApi.DataBase
                 var type = row.TryGetValue("type", out var typeValue) ? typeValue : null;
                 var category = row.TryGetValue("category", out var categoryValue) ? categoryValue : null;
                 var allowsMultiple = row.TryGetValue("allows_multiple", out var allowValue) ? allowValue ?? false : false;
-                return new object[] { id, type!, category!, allowsMultiple };
+                return [id, type!, category!, allowsMultiple ];
             }
 
             if (tableName.Equals("entry_values", StringComparison.OrdinalIgnoreCase))
@@ -260,11 +260,11 @@ namespace WebApi.DataBase
                 var parentType = row.TryGetValue("parent_type", out var parentTypeValue) ? parentTypeValue : null;
                 var value = row.TryGetValue("value", out var valueValue) ? valueValue : null;
                 var notable = row.TryGetValue("is_notable", out var notableValue) ? notableValue ?? false : false;
-                return new object[] { id, parentType!, value!, notable };
+                return [id, parentType!, value!, notable ];
             }
 
             // Default: return values in insertion order
-            return row.Values.ToArray();
+            return [row.Values.Select(v => v as object ?? v!)];
         }
     }
 }

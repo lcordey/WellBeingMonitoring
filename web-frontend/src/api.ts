@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:5000/command';
+const BASE_URL = 'http://192.168.178.22:5000/command';
 
 const normaliseDate = (value: unknown): string => {
   if (typeof value === 'string') {

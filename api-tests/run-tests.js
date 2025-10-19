@@ -127,6 +127,7 @@ async function runApiTests() {
         if (!Array.isArray(response.data) || response.data.length === 0) {
           return failed('Categories catalogue is empty.');
         }
+        console.log('Catalogue returned:', JSON.stringify(response.data, null, 2));
         const observation = response.data.find((item) =>
           item.category?.toLowerCase() === 'observation'
         );

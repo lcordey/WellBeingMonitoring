@@ -226,8 +226,8 @@ namespace WebApi.DataBase
             {
                 if (row is object[] arr && arr.Length >= 4)
                 {
-                    var type = arr[1]?.ToString()?.Trim();
-                    var category = arr[2]?.ToString()?.Trim();
+                    var category = arr[1]?.ToString()?.Trim();
+                    var type = arr[2]?.ToString()?.Trim();
                     if (string.IsNullOrWhiteSpace(category) || string.IsNullOrWhiteSpace(type))
                         continue;
 
