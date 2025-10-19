@@ -25,6 +25,10 @@ const VIEW_OPTIONS = [
 type ViewMode = (typeof VIEW_OPTIONS)[number]['key'];
 
 const colorPalette = ['#4338ca', '#6366f1', '#312e81', '#5b21b6', '#7c3aed', '#1d4ed8', '#3730a3', '#4c1d95'];
+const CALENDAR_BASE_COLORS: Record<string, string> = {
+  observation: '#2563eb',
+  symptom: '#f97316',
+};
 
 const normaliseCategory = normaliseCategoryKey;
 const getErrorMessage = (error: unknown, fallback: string) =>
@@ -48,12 +52,39 @@ function App() {
   const [calendarLoading, setCalendarLoading] = useState(false);
 
   const categoryColors = useMemo(() => {
-    const keys = Object.keys(categoryLabels).sort();
-    const map: Record<string, string> = {};
-    keys.forEach((key, index) => {
-      map[key] = colorPalette[index % colorPalette.length];
+    const colors: Record<string, string> = {};
+    const usedColors = new Set<string>();
+
+    Object.entries(CALENDAR_BASE_COLORS).forEach(([key, color]) => {
+      colors[key] = color;
+      usedColors.add(color);
     });
-    return map;
+
+    const dynamicKeys = Object.keys(categoryLabels)
+      .filter((key) => !colors[key])
+      .sort();
+
+    let paletteIndex = 0;
+    const takeNextColor = () => {
+      for (let offset = 0; offset < colorPalette.length; offset += 1) {
+        const candidate = colorPalette[(paletteIndex + offset) % colorPalette.length];
+        if (!usedColors.has(candidate)) {
+          paletteIndex = paletteIndex + offset + 1;
+          return candidate;
+        }
+      }
+      const fallback = colorPalette[paletteIndex % colorPalette.length];
+      paletteIndex += 1;
+      return fallback;
+    };
+
+    dynamicKeys.forEach((key) => {
+      const color = takeNextColor();
+      colors[key] = color;
+      usedColors.add(color);
+    });
+
+    return colors;
   }, [categoryLabels]);
 
   const refreshSelectedDateEntries = useCallback(() => {

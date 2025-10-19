@@ -2,11 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { getAllWellBeingData, type WellBeingEntry } from '../api';
 
 const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
-const DEFAULT_START_DATE = '2025-01-01';
-const getDefaultEndDate = () => {
-  const today = toDateInputValue(new Date());
-  return today < DEFAULT_START_DATE ? DEFAULT_START_DATE : today;
-};
+const getDefaultStartDate = () => toDateInputValue(new Date());
+const getDefaultEndDate = () => toDateInputValue(new Date());
 const toCategoryKey = (value: string) => value.trim().toLowerCase();
 const toTypeKey = (entry: WellBeingEntry) =>
   `${toCategoryKey(entry.category)}|${entry.type.trim().toLowerCase()}`;
@@ -23,7 +20,7 @@ interface ChipOption {
 }
 
 export const WellBeingDashboard: React.FC = () => {
-  const [startDate, setStartDate] = useState(DEFAULT_START_DATE);
+  const [startDate, setStartDate] = useState(() => getDefaultStartDate());
   const [endDate, setEndDate] = useState(() => getDefaultEndDate());
   const [entries, setEntries] = useState<WellBeingEntry[]>([]);
   const [loading, setLoading] = useState(false);
