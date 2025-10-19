@@ -28,6 +28,25 @@ async function runApiTests() {
       validate: (response) => validateOk(response, 'Type created successfully')
     },
     {
+      name: 'Retrieve category/type catalogue',
+      request: () => getJson('/command/catalogue'),
+      validate: (response) => {
+        if (!response.ok) {
+          return failed(`Unexpected status code ${response.status}`);
+        }
+        if (!Array.isArray(response.data) || response.data.length === 0) {
+          return failed('No catalogue entries returned.');
+        }
+        const hasMood = response.data.some((item) =>
+          item?.category?.toLowerCase() === 'observation' && item?.type?.toLowerCase() === 'mood'
+        );
+        if (!hasMood) {
+          return failed('Newly created type missing from catalogue.');
+        }
+        return passed('Catalogue retrieved successfully');
+      }
+    },
+    {
       name: 'Add well-being value',
       request: () => postJson('/command/addWBValue', {
         type: 'mood',
@@ -118,6 +137,34 @@ async function runApiTests() {
       }
     },
     {
+      name: 'Delete well-being data entry',
+      request: () => postJson('/command/deleteWBData', {
+        date: '2024-01-10',
+        category: 'observation',
+        type: 'mood'
+      }),
+      validate: (response) => validateOk(response, 'Well-being data removed successfully')
+    },
+    {
+      name: 'Verify well-being data removed',
+      request: () => postJson('/command/getAll', {
+        startDate: '2024-01-01',
+        endDate: '2024-12-31',
+        categoryAndTypes: [
+          { category: 'observation', type: 'mood' }
+        ]
+      }),
+      validate: (response) => {
+        if (!response.ok) {
+          return failed(`Unexpected status code ${response.status}`);
+        }
+        if (Array.isArray(response.data) && response.data.length === 0) {
+          return passed('Well-being data entry successfully deleted');
+        }
+        return failed('Well-being entry was not removed as expected.');
+      }
+    },
+    {
       name: 'Delete well-being value',
       request: () => postJson('/command/deleteWBValue', {
         type: 'mood',
@@ -188,6 +235,28 @@ async function runApiTests() {
   }
 
   return results;
+}
+
+async function getJson(path) {
+  const url = `${BASE_URL}${path}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json'
+    }
+  });
+
+  const text = await response.text();
+  let data;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (error) {
+      data = text;
+    }
+  }
+
+  return { ok: response.ok, status: response.status, data };
 }
 
 async function postJson(path, payload) {

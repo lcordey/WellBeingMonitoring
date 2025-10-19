@@ -1,5 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { getAllWellBeingData, type WellBeingEntry } from '../api';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  getAllWellBeingData,
+  getWellBeingDefinitions,
+  type WellBeingEntry,
+} from '../api';
+import {
+  buildNotableValuesMap,
+  isValueNotable,
+  type NotableValuesMap,
+} from '../utils/notableValues';
 
 const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
 const toCategoryKey = (value: string) => value.trim().toLowerCase();
@@ -30,6 +39,36 @@ export const WellBeingDataExplorer: React.FC = () => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [query, setQuery] = useState('');
+  const [notableValuesMap, setNotableValuesMap] = useState<NotableValuesMap>({});
+
+  const updateNotableValues = useCallback(async (entriesList: WellBeingEntry[]) => {
+    const categories = Array.from(
+      new Set(
+        entriesList
+          .map((entry) => entry.category)
+          .filter((value) => value && value.trim().length > 0)
+      )
+    );
+
+    if (categories.length === 0) {
+      setNotableValuesMap({});
+      return;
+    }
+
+    const definitionsResults = await Promise.all(
+      categories.map(async (category) => {
+        try {
+          const definitions = await getWellBeingDefinitions(category);
+          return { category, definitions };
+        } catch (error) {
+          console.warn('Failed to load definitions for category', category, error);
+          return { category, definitions: [] };
+        }
+      })
+    );
+
+    setNotableValuesMap(buildNotableValuesMap(definitionsResults));
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -40,8 +79,10 @@ export const WellBeingDataExplorer: React.FC = () => {
         endDate,
       });
       setEntries(response);
+      await updateNotableValues(response);
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Unable to retrieve data.'));
+      setNotableValuesMap({});
     } finally {
       setLoading(false);
     }
@@ -215,7 +256,30 @@ export const WellBeingDataExplorer: React.FC = () => {
                     <td>{new Date(entry.date).toLocaleDateString()}</td>
                     <td>{formatLabel(entry.category)}</td>
                     <td>{entry.type}</td>
-                    <td>{entry.values.length ? entry.values.join(', ') : '—'}</td>
+                    <td>
+                      {entry.values.length ? (
+                        <div className="data-explorer__value-group">
+                          {entry.values.map((value, valueIndex) => {
+                            const notable = isValueNotable(
+                              notableValuesMap,
+                              entry.category,
+                              entry.type,
+                              value
+                            );
+                            return (
+                              <span
+                                key={`${value}-${valueIndex}`}
+                                className={`value-pill${notable ? ' value-pill--notable' : ''}`}
+                              >
+                                {value}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

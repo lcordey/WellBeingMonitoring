@@ -6,7 +6,17 @@ import { WellBeingCalendar } from './components/WellBeingCalendar';
 import { SelectedDateDetails } from './components/SelectedDateDetails';
 import { WellBeingAdminPage } from './components/WellBeingAdminPage';
 import { WellBeingDataEntry } from './components/WellBeingDataEntry';
-import { getAllWellBeingData, type WellBeingEntry } from './api';
+import {
+  getAllWellBeingData,
+  getWellBeingDefinitions,
+  type WellBeingEntry,
+} from './api';
+import {
+  buildNotableValuesMap,
+  hasNotableValue,
+  normaliseCategoryKey,
+  type NotableValuesMap,
+} from './utils/notableValues';
 
 const VIEW_OPTIONS = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -20,7 +30,6 @@ type ViewMode = (typeof VIEW_OPTIONS)[number]['key'];
 
 const colorPalette = ['#2563eb', '#dc2626', '#0ea5e9', '#f59e0b', '#10b981', '#8b5cf6', '#f97316', '#9333ea'];
 
-const normaliseCategory = (value: string) => value.trim().toLowerCase();
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
 
@@ -40,6 +49,7 @@ function App() {
   });
   const [calendarError, setCalendarError] = useState<string | null>(null);
   const [calendarLoading, setCalendarLoading] = useState(false);
+  const [notableValuesMap, setNotableValuesMap] = useState<NotableValuesMap>({});
 
   const categoryColors = useMemo(() => {
     const keys = Object.keys(categoryLabels).sort();
@@ -78,31 +88,74 @@ function App() {
 
     setCalendarLoading(true);
     setCalendarError(null);
-    getAllWellBeingData({ startDate: startDateStr, endDate: endDateStr })
-      .then((data) => {
-        const map: Record<string, string[]> = {};
+    const fetchCalendarData = async () => {
+      try {
+        const data = await getAllWellBeingData({
+          startDate: startDateStr,
+          endDate: endDateStr,
+        });
+
+        const categories = Array.from(
+          new Set(
+            data
+              .map((entry) => entry.category)
+              .filter((value) => value && value.trim().length > 0)
+          )
+        );
+
+        const definitionsResults = await Promise.all(
+          categories.map(async (category) => {
+            try {
+              const definitions = await getWellBeingDefinitions(category);
+              return { category, definitions };
+            } catch (error) {
+              console.warn('Failed to load definitions for category', category, error);
+              return { category, definitions: [] };
+            }
+          })
+        );
+
+        const notableMap = buildNotableValuesMap(definitionsResults);
+        setNotableValuesMap(notableMap);
+
+        const requiredCategories = ['observation', 'symptom'];
         const labelsUpdate: Record<string, string> = {};
+        const dateMap: Record<string, { notable: Set<string> }> = {};
+
         data.forEach((entry) => {
           const dateKey = entry.date.slice(0, 10);
-          const categoryKey = normaliseCategory(entry.category);
+          const categoryKey = normaliseCategoryKey(entry.category);
           labelsUpdate[categoryKey] = entry.category;
-          if (!map[dateKey]) {
-            map[dateKey] = [];
+          if (!dateMap[dateKey]) {
+            dateMap[dateKey] = { notable: new Set<string>() };
           }
-          if (!map[dateKey].includes(categoryKey)) {
-            map[dateKey].push(categoryKey);
+          if (hasNotableValue(notableMap, entry)) {
+            dateMap[dateKey].notable.add(categoryKey);
           }
         });
-        setDateCategoriesMap(map);
+
+        const calendarMap: Record<string, string[]> = {};
+        Object.entries(dateMap).forEach(([date, info]) => {
+          const hasRequired = requiredCategories.every((category) =>
+            info.notable.has(category)
+          );
+          if (hasRequired) {
+            calendarMap[date] = Array.from(info.notable.values());
+          }
+        });
+
+        setDateCategoriesMap(calendarMap);
         setCategoryLabels((prev) => ({ ...prev, ...labelsUpdate }));
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         setDateCategoriesMap({});
+        setNotableValuesMap({});
         setCalendarError(getErrorMessage(error, 'Unable to load calendar data.'));
-      })
-      .finally(() => {
+      } finally {
         setCalendarLoading(false);
-      });
+      }
+    };
+
+    void fetchCalendarData();
   }, [mode, calendarYear, calendarMonth]);
 
   useEffect(() => {
@@ -151,6 +204,7 @@ function App() {
             isLoading={selectedDateLoading}
             error={selectedDateError}
             onRefresh={refreshSelectedDateEntries}
+            notableValuesMap={notableValuesMap}
           />
         </>
       ) : mode === 'entry' ? (

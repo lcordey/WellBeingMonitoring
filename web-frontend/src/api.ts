@@ -193,6 +193,18 @@ export async function addWellBeingData(entry: {
   });
 }
 
+export async function deleteWellBeingData(payload: {
+  date: string;
+  category: string;
+  type: string;
+}) {
+  await postJson<void>('/deleteWBData', {
+    Date: payload.date,
+    Category: payload.category,
+    Type: payload.type,
+  });
+}
+
 export interface GetAllWellBeingDataParams {
   startDate?: string;
   endDate?: string;

@@ -69,6 +69,14 @@ app.MapPost("/command/addWBData", async ([FromBody] AddWellBeingDataCmd command,
     return Results.Ok();
 }).WithName("PostSetDataCommand");
 
+// POST /command/delete-data endpoint for removing records
+app.MapPost("/command/deleteWBData", async ([FromBody] DeleteWellBeingDataCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
+{
+    logger.LogInformation("Received DeleteWellBeingDataCmd: {@Command}", command);
+    await handler.DeleteWellBeingDataAsync(command);
+    return Results.Ok();
+}).WithName("PostDeleteWellBeingDataCommand");
+
 // POST /command/get-all endpoint for getting all filtered data
 app.MapPost("/command/getAll", async ([FromBody] GetAllWellBeingDataCmd command, IRestApiCommandHandler handler, ILogger<Program> logger) =>
 {

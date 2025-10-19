@@ -1,5 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { WellBeingEntry } from '../api';
+import {
+  splitValuesByNotable,
+  type NotableValuesMap,
+} from '../utils/notableValues';
 
 interface SelectedDateDetailsProps {
   date?: string;
@@ -7,6 +11,7 @@ interface SelectedDateDetailsProps {
   isLoading: boolean;
   error?: string | null;
   onRefresh?: () => void;
+  notableValuesMap: NotableValuesMap;
 }
 
 const formatCategory = (category: string) =>
@@ -18,6 +23,7 @@ export const SelectedDateDetails: React.FC<SelectedDateDetailsProps> = ({
   isLoading,
   error,
   onRefresh,
+  notableValuesMap,
 }) => {
   if (!date) {
     return (
@@ -27,6 +33,68 @@ export const SelectedDateDetails: React.FC<SelectedDateDetailsProps> = ({
       </div>
     );
   }
+
+  const enhancedEntries = useMemo(() =>
+    entries.map((entry, index) => {
+      const { notableValues, otherValues } = splitValuesByNotable(notableValuesMap, entry);
+      return {
+        key: `${entry.category}-${entry.type}-${index}`,
+        entry,
+        notableValues,
+        otherValues,
+        hasNotable: notableValues.length > 0,
+      };
+    }),
+  [entries, notableValuesMap]);
+
+  const notableEntries = enhancedEntries.filter((item) => item.hasNotable);
+  const regularEntries = enhancedEntries.filter((item) => !item.hasNotable);
+
+  const renderEntry = (item: (typeof enhancedEntries)[number]) => (
+    <li key={item.key}>
+      <div className="selected-date-details__item">
+        <span className="selected-date-details__badge">
+          {formatCategory(item.entry.category)}
+        </span>
+        <div>
+          <strong>{item.entry.type}</strong>
+          {item.entry.values.length === 0 ? (
+            <div className="selected-date-details__value">Values: —</div>
+          ) : (
+            <div className="selected-date-details__value-group">
+              {item.notableValues.length > 0 && (
+                <div className="selected-date-details__value-row">
+                  <span className="selected-date-details__value-label">Notable</span>
+                  <div className="selected-date-details__value-chips">
+                    {item.notableValues.map((value, valueIndex) => (
+                      <span
+                        key={`notable-${value}-${valueIndex}`}
+                        className="value-pill value-pill--notable"
+                      >
+                        {value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {item.otherValues.length > 0 && (
+                <div className="selected-date-details__value-row">
+                  <span className="selected-date-details__value-label">Other</span>
+                  <div className="selected-date-details__value-chips">
+                    {item.otherValues.map((value, valueIndex) => (
+                      <span key={`other-${value}-${valueIndex}`} className="value-pill">
+                        {value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </li>
+  );
 
   return (
     <div className="selected-date-details">
@@ -46,23 +114,28 @@ export const SelectedDateDetails: React.FC<SelectedDateDetailsProps> = ({
       {isLoading && <div className="selected-date-details__loading">Loading data…</div>}
       {error && <div className="selected-date-details__error">{error}</div>}
       {!isLoading && !error && (
-        <ul className="selected-date-details__list">
-          {entries.map((entry, index) => (
-            <li key={`${entry.category}-${entry.type}-${index}`}>
-              <div className="selected-date-details__item">
-                <span className="selected-date-details__badge">
-                  {formatCategory(entry.category)}
-                </span>
-                <div>
-                  <strong>{entry.type}</strong>
-                  <div className="selected-date-details__value">
-                    Values: {entry.values.length ? entry.values.join(', ') : '—'}
-                  </div>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <div className="selected-date-details__content">
+          <section className="selected-date-details__section">
+            <h4>Notable data</h4>
+            {notableEntries.length > 0 ? (
+              <ul className="selected-date-details__list">
+                {notableEntries.map((item) => renderEntry(item))}
+              </ul>
+            ) : (
+              <p className="selected-date-details__empty">No notable entries recorded.</p>
+            )}
+          </section>
+          <section className="selected-date-details__section">
+            <h4>Other data</h4>
+            {regularEntries.length > 0 ? (
+              <ul className="selected-date-details__list">
+                {regularEntries.map((item) => renderEntry(item))}
+              </ul>
+            ) : (
+              <p className="selected-date-details__empty">No additional entries recorded.</p>
+            )}
+          </section>
+        </div>
       )}
     </div>
   );

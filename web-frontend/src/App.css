@@ -311,6 +311,31 @@
   background: rgba(99, 102, 241, 0.05);
 }
 
+.value-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  color: #1f2937;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.value-pill--notable {
+  background: rgba(234, 88, 12, 0.18);
+  color: #9a3412;
+  border: 1px solid rgba(234, 88, 12, 0.35);
+  box-shadow: 0 6px 16px rgba(234, 88, 12, 0.2);
+}
+
+.data-explorer__value-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 /* Data entry */
 .data-entry {
   background: white;
@@ -796,6 +821,50 @@
   display: block;
   color: #334155;
   margin-top: 4px;
+}
+
+.selected-date-details__content {
+  display: grid;
+  gap: 24px;
+}
+
+.selected-date-details__section h4 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  color: #4338ca;
+}
+
+.selected-date-details__empty {
+  margin: 6px 0 0;
+  color: #94a3b8;
+}
+
+.selected-date-details__value-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.selected-date-details__value-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.selected-date-details__value-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4338ca;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.selected-date-details__value-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 @media (max-width: 768px) {
