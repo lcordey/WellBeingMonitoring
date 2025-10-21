@@ -9,6 +9,7 @@ import {
 
 const toDateInputValue = (date: Date) => date.toISOString().slice(0, 10);
 const normaliseKey = (value: string) => value.trim().toLowerCase();
+const FIXED_CATEGORIES = ['observation', 'symptom'] as const;
 interface CategoryDefinitions {
   label: string;
   definitions: WellBeingDefinition[];
@@ -28,7 +29,6 @@ export const WellBeingDataEntry: React.FC = () => {
   const [category, setCategory] = useState('observation');
   const [type, setType] = useState('');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
-  const [customValue, setCustomValue] = useState('');
   const [definitionsByCategory, setDefinitionsByCategory] = useState<
     Record<string, CategoryDefinitions>
   >({});
@@ -42,19 +42,6 @@ export const WellBeingDataEntry: React.FC = () => {
   const loadingDefinitionsRef = useRef(false);
 
   const categoryKey = normaliseKey(category);
-
-  const categoryOptions = useMemo(() => {
-    const entries = new Map<string, string>();
-    entries.set(normaliseKey('observation'), 'observation');
-    entries.set(normaliseKey('symptom'), 'symptom');
-    Object.values(definitionsByCategory).forEach((item) => {
-      entries.set(normaliseKey(item.label), item.label);
-    });
-    Object.values(catalogue).forEach((item) => {
-      entries.set(normaliseKey(item.label), item.label);
-    });
-    return Array.from(entries.values()).sort((a, b) => a.localeCompare(b));
-  }, [catalogue, definitionsByCategory]);
 
   const definitionsForCategory = useMemo(
     () => definitionsByCategory[categoryKey]?.definitions ?? [],
@@ -168,7 +155,7 @@ export const WellBeingDataEntry: React.FC = () => {
   }, [refreshCatalogue]);
 
   useEffect(() => {
-    const defaultCategories = ['observation', 'symptom'];
+    const defaultCategories = FIXED_CATEGORIES;
     const loadDefaults = async () => {
       for (const defaultCategory of defaultCategories) {
         const key = normaliseKey(defaultCategory);
@@ -185,16 +172,6 @@ export const WellBeingDataEntry: React.FC = () => {
       void fetchDefinitions(category);
     }
   }, [category, categoryKey, definitionsByCategory, fetchDefinitions]);
-
-  useEffect(() => {
-    if (categoryOptions.length === 0) {
-      return;
-    }
-    const normalisedOptions = new Set(categoryOptions.map(normaliseKey));
-    if (!normalisedOptions.has(categoryKey)) {
-      setCategory(categoryOptions[0]);
-    }
-  }, [categoryKey, categoryOptions]);
 
   useEffect(() => {
     setSelectedValues((prev) => {
@@ -239,18 +216,6 @@ export const WellBeingDataEntry: React.FC = () => {
     }
   };
 
-  const handleAddCustomValue = () => {
-    const trimmed = customValue.trim();
-    if (!trimmed) return;
-    setSelectedValues((prev) => {
-      if (allowMultiple) {
-        return Array.from(new Set([...prev, trimmed]));
-      }
-      return [trimmed];
-    });
-    setCustomValue('');
-  };
-
   const handleSubmit = async () => {
     setStatus(null);
     setError(null);
@@ -266,7 +231,7 @@ export const WellBeingDataEntry: React.FC = () => {
       return;
     }
     if (selectedValues.length === 0) {
-      setError('Select or add at least one value for the entry.');
+      setError('Select at least one value for the entry.');
       return;
     }
 
@@ -280,12 +245,20 @@ export const WellBeingDataEntry: React.FC = () => {
       });
       setStatus('Entry saved successfully.');
       setSelectedValues([]);
-      setCustomValue('');
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Unable to save the entry.'));
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSelectCategory = (option: string) => {
+    if (category === option) {
+      return;
+    }
+    setCategory(option);
+    setType('');
+    setSelectedValues([]);
   };
 
   return (
@@ -314,47 +287,59 @@ export const WellBeingDataEntry: React.FC = () => {
       {error && <div className="data-entry__error">{error}</div>}
 
       <div className="data-entry__grid">
-        <label>
-          Date
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-        </label>
-        <label>
-          Category
-          <select
-            value={categoryOptions.length ? category : ''}
-            onChange={(event) => setCategory(event.target.value)}
-            disabled={categoryOptions.length === 0}
-          >
-            {categoryOptions.length === 0 ? (
-              <option value="">No categories available</option>
-            ) : (
-              <>
-                {categoryOptions.map((option) => (
-                  <option key={option} value={option}>
+        <div className="data-entry__field">
+          <label className="data-entry__field-label" htmlFor="wellbeing-data-entry-date">
+            Date
+          </label>
+          <input
+            id="wellbeing-data-entry-date"
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+          />
+        </div>
+        <div className="data-entry__field">
+          <span className="data-entry__field-label">Category</span>
+          <div className="data-entry__chips" role="group" aria-label="Category">
+            {FIXED_CATEGORIES.map((option) => {
+              const isActive = category === option;
+              return (
+                <button
+                  type="button"
+                  key={option}
+                  className={`data-entry__chip ${isActive ? 'data-entry__chip--active' : ''}`}
+                  onClick={() => handleSelectCategory(option)}
+                  aria-pressed={isActive}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="data-entry__field">
+          <span className="data-entry__field-label">Type</span>
+          {typeOptions.length > 0 ? (
+            <div className="data-entry__chips" role="group" aria-label="Type">
+              {typeOptions.map((option) => {
+                const isActive = type === option;
+                return (
+                  <button
+                    type="button"
+                    key={option}
+                    className={`data-entry__chip ${isActive ? 'data-entry__chip--active' : ''}`}
+                    onClick={() => setType((prev) => (prev === option ? '' : option))}
+                    aria-pressed={isActive}
+                  >
                     {option}
-                  </option>
-                ))}
-              </>
-            )}
-          </select>
-        </label>
-        <label>
-          Type
-          <select
-            value={type}
-            onChange={(event) => setType(event.target.value)}
-            disabled={typeOptions.length === 0}
-          >
-            <option value="">
-              {typeOptions.length === 0 ? 'No types available' : 'Select a type'}
-            </option>
-            {typeOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="data-entry__hint">No types available for this category yet.</p>
+          )}
+        </div>
       </div>
 
       <div className="data-entry__values">
@@ -384,20 +369,9 @@ export const WellBeingDataEntry: React.FC = () => {
           </div>
         ) : (
           <p className="data-entry__hint">
-            No predefined values for this type yet. Use the field below to add one.
+            No predefined values for this type yet.
           </p>
         )}
-        <div className="data-entry__custom-value">
-          <input
-            type="text"
-            value={customValue}
-            onChange={(event) => setCustomValue(event.target.value)}
-            placeholder="Add a custom value"
-          />
-          <button type="button" onClick={handleAddCustomValue}>
-            Add value
-          </button>
-        </div>
       </div>
 
       <div className="data-entry__actions">

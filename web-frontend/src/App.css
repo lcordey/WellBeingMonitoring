@@ -427,16 +427,19 @@
   gap: 18px;
 }
 
-.data-entry__grid label {
+.data-entry__field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.data-entry__field-label {
   font-weight: 600;
   color: #4338ca;
 }
 
-.data-entry__grid input,
-.data-entry__grid select {
+.data-entry__field input,
+.data-entry__field select {
   border: 1px solid rgba(148, 163, 184, 0.6);
   border-radius: 10px;
   padding: 9px 12px;
@@ -499,20 +502,6 @@
 .data-entry__hint {
   margin: 0;
   color: #64748b;
-}
-
-.data-entry__custom-value {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.data-entry__custom-value input {
-  flex: 1;
-  border: 1px solid rgba(148, 163, 184, 0.6);
-  border-radius: 10px;
-  padding: 9px 12px;
-  background: white;
 }
 
 .data-entry__actions {
@@ -685,16 +674,19 @@
   align-items: end;
 }
 
-.definitions-manager__form-grid label {
+.definitions-manager__field {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.definitions-manager__field-label {
   font-weight: 600;
   color: #4338ca;
 }
 
-.definitions-manager__form-grid input,
-.definitions-manager__form-grid select {
+.definitions-manager__field input,
+.definitions-manager__field select {
   border: 1px solid rgba(148, 163, 184, 0.6);
   border-radius: 10px;
   padding: 9px 12px;
@@ -702,7 +694,7 @@
   font-size: 0.95rem;
 }
 
-.definitions-manager__form-grid button {
+.definitions-manager__form-grid > button {
   background: linear-gradient(135deg, #6366f1, #4338ca);
   color: white;
   border: none;
@@ -713,7 +705,36 @@
   box-shadow: 0 12px 24px rgba(79, 70, 229, 0.25);
 }
 
-.definitions-manager__form-grid button:disabled {
+.definitions-manager__form-grid > button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.definitions-manager__toggle-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.definitions-manager__toggle {
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  padding: 6px 14px;
+  background: white;
+  color: #4338ca;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+
+.definitions-manager__toggle--active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: white;
+  box-shadow: 0 12px 24px rgba(67, 56, 202, 0.25);
+}
+
+.definitions-manager__toggle:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   box-shadow: none;
