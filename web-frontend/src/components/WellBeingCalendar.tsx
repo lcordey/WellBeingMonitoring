@@ -10,6 +10,16 @@ interface WellBeingCalendarProps {
   dateCategoriesMap: Record<string, string[]>;
   categoryLabels: Record<string, string>;
   categoryColors: Record<string, string>;
+  filterCategories?: {
+    key: string;
+    label: string;
+    options: { key: string; label: string; enabled: boolean }[];
+  }[];
+  filterLoading?: boolean;
+  filterError?: string | null;
+  onFilterToggle?: (categoryKey: string, typeKey: string) => void;
+  onFilterToggleAll?: (categoryKey: string, enabled: boolean) => void;
+  onFilterRetry?: () => void;
 }
 
 const monthNames = [
@@ -80,6 +90,12 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
   dateCategoriesMap,
   categoryLabels,
   categoryColors,
+  filterCategories,
+  filterLoading,
+  filterError,
+  onFilterToggle,
+  onFilterToggleAll,
+  onFilterRetry,
 }) => {
   const firstDay = new Date(calendarYear, calendarMonth, 1);
   const lastDay = new Date(calendarYear, calendarMonth + 1, 0);
@@ -114,6 +130,11 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
   };
 
   const legendItems = getLegendItems(categoryLabels, categoryColors);
+  const filterList = filterCategories ?? [];
+  const isLoadingFilters = Boolean(filterLoading);
+  const filterErrorMessage = filterError ?? '';
+  const formatLabel = (label: string) =>
+    label.length > 0 ? label.charAt(0).toUpperCase() + label.slice(1) : label;
 
   return (
     <div className="calendar">
@@ -137,6 +158,77 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
         </div>
       </div>
 
+      <div className="calendar__filters">
+        <div className="calendar__filters-header">
+          <h3>Types included in calendar</h3>
+          {isLoadingFilters && (
+            <span className="calendar__filters-status">Loading types…</span>
+          )}
+        </div>
+        {filterErrorMessage && (
+          <div className="calendar__filters-error">
+            <span>{filterErrorMessage}</span>
+            {onFilterRetry && (
+              <button type="button" onClick={onFilterRetry}>
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+        {filterList.length > 0 ? (
+          filterList.map((category) => (
+            <div key={category.key} className="calendar__filter-group">
+              <div className="calendar__filter-group-header">
+                <span className="calendar__filter-group-title">
+                  {formatLabel(category.label)} types
+                </span>
+                {onFilterToggleAll && (
+                  <div className="calendar__filter-group-actions">
+                    <button
+                      type="button"
+                      onClick={() => onFilterToggleAll(category.key, true)}
+                    >
+                      Enable all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onFilterToggleAll(category.key, false)}
+                    >
+                      Disable all
+                    </button>
+                  </div>
+                )}
+              </div>
+              {category.options.length > 0 ? (
+                <div className="calendar__filter-options">
+                  {category.options.map((option) => (
+                    <label
+                      key={option.key}
+                      className={`calendar__filter-option${
+                        option.enabled ? '' : ' calendar__filter-option--inactive'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={option.enabled}
+                        onChange={() => onFilterToggle?.(category.key, option.key)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="calendar__filters-empty">No types available.</p>
+              )}
+            </div>
+          ))
+        ) : !isLoadingFilters && !filterErrorMessage ? (
+          <p className="calendar__filters-empty">
+            No observation or symptom types were found.
+          </p>
+        ) : null}
+      </div>
+
       {legendItems.length > 0 && (
         <div className="calendar__legend">
           {legendItems.map((item) => (
@@ -145,7 +237,7 @@ export const WellBeingCalendar: React.FC<WellBeingCalendarProps> = ({
                 className="calendar__legend-color"
                 style={{ background: item.color }}
               />
-              {item.label.charAt(0).toUpperCase() + item.label.slice(1)}
+              {formatLabel(item.label)}
             </span>
           ))}
         </div>

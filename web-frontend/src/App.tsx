@@ -6,11 +6,16 @@ import { WellBeingCalendar } from './components/WellBeingCalendar';
 import { SelectedDateDetails } from './components/SelectedDateDetails';
 import { WellBeingAdminPage } from './components/WellBeingAdminPage';
 import { WellBeingDataEntry } from './components/WellBeingDataEntry';
-import { getAllWellBeingData, type WellBeingEntry } from './api';
+import {
+  getAllWellBeingData,
+  getWellBeingCategoryTypes,
+  type WellBeingEntry,
+} from './api';
 import {
   fetchNotableLookup,
   hasNotableValue,
   normaliseCategoryKey,
+  normaliseTypeKey,
   type NotableValueLookup,
 } from './utils/notable';
 
@@ -30,9 +35,67 @@ const CALENDAR_BASE_COLORS: Record<string, string> = {
   symptom: '#f97316',
 };
 
+const CALENDAR_CATEGORY_KEYS = ['observation', 'symptom'] as const;
+type CalendarCategoryKey = (typeof CALENDAR_CATEGORY_KEYS)[number];
+
+type CalendarTypeOption = {
+  key: string;
+  label: string;
+};
+
+type CalendarFilterCategory = {
+  key: CalendarCategoryKey;
+  label: string;
+  options: (CalendarTypeOption & { enabled: boolean })[];
+};
+
+type CalendarEnabledTypes = Partial<Record<CalendarCategoryKey, string[]>>;
+type CalendarTypeOptions = Partial<Record<CalendarCategoryKey, CalendarTypeOption[]>>;
+
+const isCalendarCategoryKey = (value: string): value is CalendarCategoryKey =>
+  (CALENDAR_CATEGORY_KEYS as readonly string[]).includes(value);
+
 const normaliseCategory = normaliseCategoryKey;
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
+
+const buildDateCategoriesMap = (
+  entries: WellBeingEntry[],
+  enabledTypes: CalendarEnabledTypes
+): Record<string, string[]> => {
+  const dateCategoryNotable = new Map<string, Set<string>>();
+
+  entries.forEach((entry) => {
+    const categoryKey = normaliseCategory(entry.category);
+    if (!isCalendarCategoryKey(categoryKey)) {
+      return;
+    }
+
+    const typeKey = normaliseTypeKey(entry.type);
+    const categoryFilters = enabledTypes[categoryKey];
+
+    if (Array.isArray(categoryFilters)) {
+      if (categoryFilters.length === 0) {
+        return;
+      }
+      if (!categoryFilters.includes(typeKey)) {
+        return;
+      }
+    }
+
+    const dateKey = entry.date.slice(0, 10);
+    const categories = dateCategoryNotable.get(dateKey) ?? new Set<string>();
+    categories.add(categoryKey);
+    dateCategoryNotable.set(dateKey, categories);
+  });
+
+  const map: Record<string, string[]> = {};
+  dateCategoryNotable.forEach((categories, dateKey) => {
+    map[dateKey] = Array.from(categories).sort();
+  });
+
+  return map;
+};
 
 function App() {
   const today = new Date();
@@ -44,6 +107,13 @@ function App() {
   const [calendarYear, setCalendarYear] = useState(today.getFullYear());
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth());
   const [dateCategoriesMap, setDateCategoriesMap] = useState<Record<string, string[]>>({});
+  const [calendarEntries, setCalendarEntries] = useState<WellBeingEntry[]>([]);
+  const [calendarTypeOptions, setCalendarTypeOptions] = useState<CalendarTypeOptions>({});
+  const [enabledCalendarTypes, setEnabledCalendarTypes] =
+    useState<CalendarEnabledTypes>({});
+  const [calendarFiltersLoading, setCalendarFiltersLoading] = useState(false);
+  const [calendarFiltersError, setCalendarFiltersError] = useState<string | null>(null);
+  const [calendarFiltersInitialised, setCalendarFiltersInitialised] = useState(false);
   const [categoryLabels, setCategoryLabels] = useState<Record<string, string>>({
     observation: 'observation',
     symptom: 'symptom',
@@ -87,6 +157,144 @@ function App() {
     return colors;
   }, [categoryLabels]);
 
+  const loadCalendarTypeOptions = useCallback(async () => {
+    setCalendarFiltersLoading(true);
+    setCalendarFiltersError(null);
+    try {
+      const categoryTypes = await getWellBeingCategoryTypes();
+      const nextOptions: CalendarTypeOptions = {};
+
+      categoryTypes.forEach((entry) => {
+        const categoryKey = normaliseCategory(entry.category);
+        if (!isCalendarCategoryKey(categoryKey)) {
+          return;
+        }
+
+        const optionsByKey = new Map<string, CalendarTypeOption>();
+        entry.types.forEach((type) => {
+          const option: CalendarTypeOption = {
+            key: normaliseTypeKey(type),
+            label: type,
+          };
+          if (option.key.length === 0 || optionsByKey.has(option.key)) {
+            return;
+          }
+          optionsByKey.set(option.key, option);
+        });
+
+        const typeOptions = Array.from(optionsByKey.values()).sort((a, b) =>
+          a.label.localeCompare(b.label)
+        );
+
+        if (typeOptions.length > 0) {
+          nextOptions[categoryKey] = typeOptions;
+        }
+      });
+
+      setCalendarTypeOptions(nextOptions);
+      setEnabledCalendarTypes((prev) => {
+        const next: CalendarEnabledTypes = {};
+        (Object.entries(nextOptions) as [CalendarCategoryKey, CalendarTypeOption[]][]).forEach(
+          ([categoryKey, options]) => {
+            const availableKeys = options.map((option) => option.key);
+            const previousSelection = prev[categoryKey] ?? availableKeys;
+            const previousSet = new Set(previousSelection);
+            const retained = availableKeys.filter((key) => previousSet.has(key));
+            next[categoryKey] = retained.length > 0 ? retained : [...availableKeys];
+          }
+        );
+        return next;
+      });
+    } catch (error: unknown) {
+      console.error('Unable to load calendar type options', error);
+      setCalendarFiltersError(
+        getErrorMessage(error, 'Unable to load calendar type filters.')
+      );
+      setCalendarTypeOptions({});
+      setEnabledCalendarTypes({});
+    } finally {
+      setCalendarFiltersLoading(false);
+    }
+  }, []);
+
+  const handleToggleCalendarType = useCallback(
+    (categoryKey: string, typeKey: string) => {
+      if (!isCalendarCategoryKey(categoryKey)) {
+        return;
+      }
+
+      setEnabledCalendarTypes((prev) => {
+        const options = calendarTypeOptions[categoryKey];
+        if (!options) {
+          return prev;
+        }
+
+        const availableKeys = options.map((option) => option.key);
+        if (!availableKeys.includes(typeKey)) {
+          return prev;
+        }
+
+        const previousSelection = prev[categoryKey] ?? availableKeys;
+        const previousSet = new Set(previousSelection);
+        const toggledSet = new Set(previousSelection);
+
+        if (toggledSet.has(typeKey)) {
+          toggledSet.delete(typeKey);
+        } else {
+          toggledSet.add(typeKey);
+        }
+
+        const nextSelection = availableKeys.filter((key) => toggledSet.has(key));
+        const orderedPrevious = availableKeys.filter((key) => previousSet.has(key));
+
+        if (
+          orderedPrevious.length === nextSelection.length &&
+          orderedPrevious.every((value, index) => value === nextSelection[index])
+        ) {
+          return prev;
+        }
+
+        return { ...prev, [categoryKey]: nextSelection };
+      });
+    },
+    [calendarTypeOptions]
+  );
+
+  const handleToggleAllCalendarTypes = useCallback(
+    (categoryKey: string, enabled: boolean) => {
+      if (!isCalendarCategoryKey(categoryKey)) {
+        return;
+      }
+
+      setEnabledCalendarTypes((prev) => {
+        const options = calendarTypeOptions[categoryKey];
+        if (!options) {
+          return prev;
+        }
+
+        const availableKeys = options.map((option) => option.key);
+        const nextSelection = enabled ? [...availableKeys] : [];
+        const previousSelection = prev[categoryKey] ?? availableKeys;
+        const previousSet = new Set(previousSelection);
+        const orderedPrevious = availableKeys.filter((key) => previousSet.has(key));
+
+        if (
+          orderedPrevious.length === nextSelection.length &&
+          orderedPrevious.every((value, index) => value === nextSelection[index])
+        ) {
+          return prev;
+        }
+
+        return { ...prev, [categoryKey]: nextSelection };
+      });
+    },
+    [calendarTypeOptions]
+  );
+
+  const handleReloadCalendarTypes = useCallback(() => {
+    void loadCalendarTypeOptions();
+  }, [loadCalendarTypeOptions]);
+
   const refreshSelectedDateEntries = useCallback(() => {
     if (!selectedDate) return;
     setSelectedDateLoading(true);
@@ -114,6 +322,8 @@ function App() {
 
     setCalendarLoading(true);
     setCalendarError(null);
+    setCalendarEntries([]);
+    setDateCategoriesMap({});
     try {
       const data = await getAllWellBeingData({ startDate: startDateStr, endDate: endDateStr });
 
@@ -136,27 +346,14 @@ function App() {
           console.error('Unable to compute notable values for the calendar view', error);
         }
       }
+      const notableEntries = relevantEntries.filter((entry) =>
+        hasNotableValue(entry, notableLookup)
+      );
 
-      const dateCategoryNotable = new Map<string, Set<string>>();
-      relevantEntries.forEach((entry) => {
-        if (!hasNotableValue(entry, notableLookup)) {
-          return;
-        }
-        const dateKey = entry.date.slice(0, 10);
-        const categoryKey = normaliseCategory(entry.category);
-        const set = dateCategoryNotable.get(dateKey) ?? new Set<string>();
-        set.add(categoryKey);
-        dateCategoryNotable.set(dateKey, set);
-      });
-
-      const map: Record<string, string[]> = {};
-      dateCategoryNotable.forEach((set, dateKey) => {
-        map[dateKey] = Array.from(set).sort();
-      });
-
-      setDateCategoriesMap(map);
+      setCalendarEntries(notableEntries);
       setCategoryLabels((prev) => ({ ...prev, ...labelsUpdate }));
     } catch (error: unknown) {
+      setCalendarEntries([]);
       setDateCategoriesMap({});
       setCalendarError(getErrorMessage(error, 'Unable to load calendar data.'));
     } finally {
@@ -170,10 +367,21 @@ function App() {
   }, [mode, refreshCalendarData]);
 
   useEffect(() => {
+    if (mode !== 'calendar') return;
+    if (calendarFiltersInitialised) return;
+    setCalendarFiltersInitialised(true);
+    void loadCalendarTypeOptions();
+  }, [mode, calendarFiltersInitialised, loadCalendarTypeOptions]);
+
+  useEffect(() => {
     if (mode === 'calendar' && selectedDate) {
       refreshSelectedDateEntries();
     }
   }, [mode, selectedDate, refreshSelectedDateEntries]);
+
+  useEffect(() => {
+    setDateCategoriesMap(buildDateCategoriesMap(calendarEntries, enabledCalendarTypes));
+  }, [calendarEntries, enabledCalendarTypes]);
 
   const handleEntryDeleted = useCallback(() => {
     refreshSelectedDateEntries();
@@ -181,6 +389,30 @@ function App() {
       refreshCalendarData();
     }
   }, [mode, refreshCalendarData, refreshSelectedDateEntries]);
+
+  const calendarFilterCategories = useMemo<CalendarFilterCategory[]>(() => {
+    return CALENDAR_CATEGORY_KEYS.map((categoryKey) => {
+      const options = calendarTypeOptions[categoryKey];
+      if (!options || options.length === 0) {
+        return null;
+      }
+
+      const defaultKeys = options.map((option) => option.key);
+      const enabledKeys = enabledCalendarTypes[categoryKey];
+      const activeKeys =
+        enabledKeys && enabledKeys.length > 0 ? enabledKeys : defaultKeys;
+      const activeSet = new Set(activeKeys);
+
+      return {
+        key: categoryKey,
+        label: categoryLabels[categoryKey] ?? categoryKey,
+        options: options.map((option) => ({
+          ...option,
+          enabled: activeSet.has(option.key),
+        })),
+      } satisfies CalendarFilterCategory;
+    }).filter((item): item is CalendarFilterCategory => Boolean(item));
+  }, [calendarTypeOptions, enabledCalendarTypes, categoryLabels]);
 
   return (
     <div className="App">
@@ -213,6 +445,12 @@ function App() {
             dateCategoriesMap={dateCategoriesMap}
             categoryLabels={categoryLabels}
             categoryColors={categoryColors}
+            filterCategories={calendarFilterCategories}
+            filterLoading={calendarFiltersLoading}
+            filterError={calendarFiltersError}
+            onFilterToggle={handleToggleCalendarType}
+            onFilterToggleAll={handleToggleAllCalendarTypes}
+            onFilterRetry={handleReloadCalendarTypes}
           />
           {calendarLoading && <p className="calendar__info">Loading calendar data…</p>}
           {calendarError && <div className="calendar__error">{calendarError}</div>}
