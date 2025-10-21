@@ -5,7 +5,6 @@ import {
   deleteWellBeingType,
   deleteWellBeingValue,
   getWellBeingDefinitions,
-  getWellBeingValues,
   type WellBeingDefinition,
   type WellBeingDefinitionValue,
 } from '../api';
@@ -44,66 +43,12 @@ export const WellBeingAdminPage: React.FC = () => {
   const [valueName, setValueName] = useState('');
   const [valueNotable, setValueNotable] = useState(false);
   const [removeValueName, setRemoveValueName] = useState('');
-  const [lookupType, setLookupType] = useState('');
-  const [lookupValues, setLookupValues] = useState<WellBeingDefinitionValue[]>([]);
-  const [lookupError, setLookupError] = useState<string | null>(null);
-  const [lookupLoading, setLookupLoading] = useState(false);
-
-  const knownCategories = useMemo(() => {
-    const map = new Map<string, string>();
-    FIXED_CATEGORIES.forEach((category) => {
-      map.set(normaliseKey(category), category);
-    });
-    Object.values(definitionsByCategory).forEach((entry) => {
-      map.set(normaliseKey(entry.label), entry.label);
-    });
-    return Array.from(new Set(map.values())).sort();
-  }, [definitionsByCategory]);
-
-  useEffect(() => {
-    if (knownCategories.length === 0) {
-      return;
-    }
-    if (!knownCategories.includes(deleteTypeCategory)) {
-      setDeleteTypeCategory(knownCategories[0]);
-    }
-    if (!knownCategories.includes(valueCategory)) {
-      setValueCategory(knownCategories[0]);
-    }
-  }, [deleteTypeCategory, knownCategories, valueCategory]);
-
-  useEffect(() => {
-    if (knownCategories.length === 0) {
-      setDefinitionsCategory('');
-      return;
-    }
-    if (!knownCategories.includes(definitionsCategory)) {
-      setDefinitionsCategory(knownCategories[0]);
-    }
-  }, [definitionsCategory, knownCategories]);
 
   useEffect(() => {
     if (!FIXED_CATEGORIES.includes(newTypeCategory)) {
       setNewTypeCategory(FIXED_CATEGORIES[0]);
     }
   }, [newTypeCategory]);
-
-  const allTypeOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    Object.values(definitionsByCategory).forEach((category) => {
-      category.definitions.forEach((definition) => {
-        if (!map.has(definition.type)) {
-          map.set(
-            definition.type,
-            `${definition.type} (${formatLabel(category.label)})`
-          );
-        }
-      });
-    });
-    return Array.from(map.entries())
-      .map(([type, label]) => ({ type, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [definitionsByCategory]);
 
   const deleteTypeOptions = useMemo(() => {
     const key = normaliseKey(deleteTypeCategory);
@@ -264,22 +209,6 @@ export const WellBeingAdminPage: React.FC = () => {
     }
   };
 
-  const handleLookupValues = async () => {
-    const type = lookupType.trim();
-    if (!type) return;
-    setLookupError(null);
-    setLookupValues([]);
-    setLookupLoading(true);
-    try {
-      const values = await getWellBeingValues(type);
-      setLookupValues(values);
-    } catch (err: unknown) {
-      setLookupError(getErrorMessage(err, 'Unable to retrieve values for the type.'));
-    } finally {
-      setLookupLoading(false);
-    }
-  };
-
   const availableValuesForType = useMemo(() => {
     if (!valueTypeName.trim()) {
       return [] as WellBeingDefinitionValue[];
@@ -304,31 +233,35 @@ export const WellBeingAdminPage: React.FC = () => {
       <section className="definitions-manager__section">
         <h3>Browse definitions</h3>
         <div className="definitions-manager__form-grid">
-          <label>
-            Category
-            <select
-              value={definitionsCategory}
-              onChange={(event) => setDefinitionsCategory(event.target.value)}
-              disabled={knownCategories.length === 0}
+          <div className="definitions-manager__field">
+            <span className="definitions-manager__field-label">Category</span>
+            <div
+              className="definitions-manager__toggle-group"
+              role="group"
+              aria-label="Browse definitions category"
             >
-              {knownCategories.length === 0 ? (
-                <option value="">No categories available</option>
-              ) : (
-                knownCategories.map((option) => (
-                  <option key={option} value={option}>
+              {FIXED_CATEGORIES.map((option) => {
+                const isActive = definitionsCategory === option;
+                return (
+                  <button
+                    type="button"
+                    key={option}
+                    className={`definitions-manager__toggle ${
+                      isActive ? 'definitions-manager__toggle--active' : ''
+                    }`}
+                    onClick={() => setDefinitionsCategory(option)}
+                    aria-pressed={isActive}
+                  >
                     {formatLabel(option)}
-                  </option>
-                ))
-              )}
-            </select>
-          </label>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <button
             type="button"
             onClick={handleFetchDefinitions}
-            disabled={
-              !definitionsCategory.trim() ||
-              loadingCategoryKey === normaliseKey(definitionsCategory)
-            }
+            disabled={loadingCategoryKey === normaliseKey(definitionsCategory)}
           >
             Load definitions
           </button>
@@ -373,18 +306,33 @@ export const WellBeingAdminPage: React.FC = () => {
       <section className="definitions-manager__section">
         <h3>Create a type</h3>
         <div className="definitions-manager__form-grid">
-          <label>
-            Category
-            <select value={newTypeCategory} onChange={(event) => setNewTypeCategory(event.target.value)}>
-              {FIXED_CATEGORIES.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Type name
+          <div className="definitions-manager__field">
+            <span className="definitions-manager__field-label">Category</span>
+            <div
+              className="definitions-manager__toggle-group"
+              role="group"
+              aria-label="Category for new type"
+            >
+              {FIXED_CATEGORIES.map((option) => {
+                const isActive = newTypeCategory === option;
+                return (
+                  <button
+                    type="button"
+                    key={option}
+                    className={`definitions-manager__toggle ${
+                      isActive ? 'definitions-manager__toggle--active' : ''
+                    }`}
+                    onClick={() => setNewTypeCategory(option)}
+                    aria-pressed={isActive}
+                  >
+                    {formatLabel(option)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <label className="definitions-manager__field">
+            <span className="definitions-manager__field-label">Type name</span>
             <input
               value={newTypeName}
               onChange={(event) => setNewTypeName(event.target.value)}
@@ -408,18 +356,39 @@ export const WellBeingAdminPage: React.FC = () => {
       <section className="definitions-manager__section">
         <h3>Delete a type</h3>
         <div className="definitions-manager__form-grid">
-          <label>
-            Category
-            <select value={deleteTypeCategory} onChange={(event) => setDeleteTypeCategory(event.target.value)}>
-              {knownCategories.map((option) => (
-                <option key={option} value={option}>
-                  {formatLabel(option)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Type name
+          <div className="definitions-manager__field">
+            <span className="definitions-manager__field-label">Category</span>
+            <div
+              className="definitions-manager__toggle-group"
+              role="group"
+              aria-label="Category for deleting a type"
+            >
+              {FIXED_CATEGORIES.map((option) => {
+                const isActive = deleteTypeCategory === option;
+                return (
+                  <button
+                    type="button"
+                    key={option}
+                    className={`definitions-manager__toggle ${
+                      isActive ? 'definitions-manager__toggle--active' : ''
+                    }`}
+                    onClick={() => {
+                      if (deleteTypeCategory === option) {
+                        return;
+                      }
+                      setDeleteTypeCategory(option);
+                      setDeleteTypeName('');
+                    }}
+                    aria-pressed={isActive}
+                  >
+                    {formatLabel(option)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <label className="definitions-manager__field">
+            <span className="definitions-manager__field-label">Type name</span>
             <select value={deleteTypeName} onChange={(event) => setDeleteTypeName(event.target.value)}>
               <option value="">Select a type</option>
               {deleteTypeOptions.map((definition) => (
@@ -439,29 +408,47 @@ export const WellBeingAdminPage: React.FC = () => {
         <h3>Manage values</h3>
         <div className="definitions-manager__form-grid definitions-manager__form-grid--values">
           <div className="definitions-manager__form-row definitions-manager__form-row--two">
-            <label>
-              Category
+            <div className="definitions-manager__field">
+              <span className="definitions-manager__field-label">Category</span>
+              <div
+                className="definitions-manager__toggle-group"
+                role="group"
+                aria-label="Category for values"
+              >
+                {FIXED_CATEGORIES.map((option) => {
+                  const isActive = valueCategory === option;
+                  return (
+                    <button
+                      type="button"
+                      key={option}
+                      className={`definitions-manager__toggle ${
+                        isActive ? 'definitions-manager__toggle--active' : ''
+                      }`}
+                      onClick={() => {
+                        if (valueCategory === option) {
+                          return;
+                        }
+                        setValueCategory(option);
+                        setValueTypeName('');
+                        setRemoveValueName('');
+                      }}
+                      aria-pressed={isActive}
+                    >
+                      {formatLabel(option)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <label className="definitions-manager__field">
+              <span className="definitions-manager__field-label">Type</span>
               <select
-                value={valueCategory}
+                value={valueTypeName}
                 onChange={(event) => {
-                  setValueCategory(event.target.value);
-                  setValueTypeName('');
+                  setValueTypeName(event.target.value);
                   setRemoveValueName('');
                 }}
               >
-                {knownCategories.map((option) => (
-                  <option key={option} value={option}>
-                    {formatLabel(option)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Type
-              <select value={valueTypeName} onChange={(event) => {
-                setValueTypeName(event.target.value);
-                setRemoveValueName('');
-              }}>
                 <option value="">Select a type</option>
                 {valueCategoryDefinitions.map((definition) => (
                   <option key={definition.type} value={definition.type}>
@@ -473,8 +460,8 @@ export const WellBeingAdminPage: React.FC = () => {
           </div>
 
           <div className="definitions-manager__form-row definitions-manager__form-row--three">
-            <label>
-              New value
+            <label className="definitions-manager__field">
+              <span className="definitions-manager__field-label">New value</span>
               <input
                 value={valueName}
                 onChange={(event) => setValueName(event.target.value)}
@@ -499,8 +486,8 @@ export const WellBeingAdminPage: React.FC = () => {
           </div>
 
           <div className="definitions-manager__form-row definitions-manager__form-row--two">
-            <label>
-              Remove value
+            <label className="definitions-manager__field">
+              <span className="definitions-manager__field-label">Remove value</span>
               <select value={removeValueName} onChange={(event) => setRemoveValueName(event.target.value)}>
                 <option value="">Select a value</option>
                 {availableValuesForType.map((value) => (
@@ -521,45 +508,6 @@ export const WellBeingAdminPage: React.FC = () => {
         </div>
       </section>
 
-      <section className="definitions-manager__section">
-        <h3>Lookup values for a type</h3>
-        <div className="definitions-manager__form-grid">
-          <label>
-            Type
-            <input
-              list="definitions-type-options"
-              value={lookupType}
-              onChange={(event) => setLookupType(event.target.value)}
-              placeholder="Type name"
-            />
-            <datalist id="definitions-type-options">
-              {allTypeOptions.map((option) => (
-                <option key={option.type} value={option.type}>
-                  {option.label}
-                </option>
-              ))}
-            </datalist>
-          </label>
-          <button type="button" onClick={handleLookupValues} disabled={lookupLoading || !lookupType.trim()}>
-            Fetch values
-          </button>
-        </div>
-        {lookupLoading && <p>Loading values…</p>}
-        {lookupError && <div className="definitions-manager__error">{lookupError}</div>}
-        {!lookupLoading && lookupValues.length > 0 && (
-          <ul className="definitions-manager__value-list">
-            {lookupValues.map((value) => (
-              <li key={value.value}>
-                <span
-                  className={`definitions-manager__value-pill${value.noticeable ? ' definitions-manager__value-pill--notable' : ''}`}
-                >
-                  {value.value}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 };
