@@ -22,6 +22,18 @@ namespace WebApi.DataBase
         public async Task AddAsync(WellBeingData data)
         {
             _logger.LogInformation("AddAsync called with data: {@Data}", data);
+            var uniquenessFilter = new Dictionary<string, object>
+            {
+                ["date"] = data.Date,
+                ["category"] = data.Category,
+                ["type"] = data.Type
+            };
+            _logger.LogInformation(
+                "Ensuring single record per day/category/type by removing existing entries for date: {Date}, category: {Category}, type: {Type}",
+                data.Date,
+                data.Category,
+                data.Type);
+            await _genericRepo.RemoveAsync("entry_data", uniquenessFilter);
             var dict = new Dictionary<string, object>
             {
                 ["date"] = data.Date,
