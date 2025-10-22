@@ -440,23 +440,45 @@ export const WellBeingAdminPage: React.FC = () => {
                 })}
               </div>
             </div>
-            <label className="definitions-manager__field">
+            <div className="definitions-manager__field">
               <span className="definitions-manager__field-label">Type</span>
-              <select
-                value={valueTypeName}
-                onChange={(event) => {
-                  setValueTypeName(event.target.value);
-                  setRemoveValueName('');
-                }}
-              >
-                <option value="">Select a type</option>
-                {valueCategoryDefinitions.map((definition) => (
-                  <option key={definition.type} value={definition.type}>
-                    {definition.type}
-                  </option>
-                ))}
-              </select>
-            </label>
+              {valueCategoryDefinitions.length > 0 ? (
+                <div
+                  className="definitions-manager__toggle-group"
+                  role="group"
+                  aria-label="Type for values"
+                >
+                  {valueCategoryDefinitions.map((definition) => {
+                    const isActive = valueTypeName === definition.type;
+                    return (
+                      <button
+                        type="button"
+                        key={definition.type}
+                        className={`definitions-manager__toggle${
+                          isActive ? ' definitions-manager__toggle--active' : ''
+                        }`}
+                        onClick={() => {
+                          if (isActive) {
+                            setValueTypeName('');
+                            setRemoveValueName('');
+                          } else {
+                            setValueTypeName(definition.type);
+                            setRemoveValueName('');
+                          }
+                        }}
+                        aria-pressed={isActive}
+                      >
+                        {definition.type}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="definitions-manager__empty-hint">
+                  No types available for this category.
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="definitions-manager__form-row definitions-manager__form-row--three">

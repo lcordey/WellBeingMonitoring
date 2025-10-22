@@ -871,6 +871,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  align-items: stretch;
 }
 
 .definitions-manager__form-row {
@@ -924,6 +925,11 @@
 
 .definitions-manager__value-empty {
   color: #64748b;
+}
+
+.definitions-manager__empty-hint {
+  color: #64748b;
+  font-size: 0.9rem;
 }
 
 .definitions-manager__value-list li {

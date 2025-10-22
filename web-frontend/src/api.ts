@@ -157,7 +157,7 @@ const normaliseDefinition = (raw: unknown): WellBeingDefinition => {
 
 const normaliseCategoryTypes = (raw: unknown): WellBeingCategoryTypes => {
   const record = asRecord(raw);
-  const rawTypes = pickFirst(record, 'Types', 'types');
+  const rawTypes = pickFirst(record, 'Types', 'types', 'Type', 'type');
   const typesArray = Array.isArray(rawTypes)
     ? rawTypes
     : rawTypes === undefined || rawTypes === null
