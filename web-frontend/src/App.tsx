@@ -162,7 +162,10 @@ function App() {
     setCalendarFiltersError(null);
     try {
       const categoryTypes = await getWellBeingCategoryTypes();
-      const nextOptions: CalendarTypeOptions = {};
+      const aggregated = new Map<
+        CalendarCategoryKey,
+        Map<string, CalendarTypeOption>
+      >();
 
       categoryTypes.forEach((entry) => {
         const categoryKey = normaliseCategory(entry.category);
@@ -170,7 +173,8 @@ function App() {
           return;
         }
 
-        const optionsByKey = new Map<string, CalendarTypeOption>();
+        const optionsByKey =
+          aggregated.get(categoryKey) ?? new Map<string, CalendarTypeOption>();
         entry.types.forEach((type) => {
           const option: CalendarTypeOption = {
             key: normaliseTypeKey(type),
@@ -181,7 +185,11 @@ function App() {
           }
           optionsByKey.set(option.key, option);
         });
+        aggregated.set(categoryKey, optionsByKey);
+      });
 
+      const nextOptions: CalendarTypeOptions = {};
+      aggregated.forEach((optionsByKey, categoryKey) => {
         const typeOptions = Array.from(optionsByKey.values()).sort((a, b) =>
           a.label.localeCompare(b.label)
         );
