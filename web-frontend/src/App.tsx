@@ -6,6 +6,7 @@ import { WellBeingCalendar } from './components/WellBeingCalendar';
 import { SelectedDateDetails } from './components/SelectedDateDetails';
 import { WellBeingAdminPage } from './components/WellBeingAdminPage';
 import { WellBeingDataEntry } from './components/WellBeingDataEntry';
+import { WellBeingRecordingFeed } from './components/WellBeingRecordingFeed';
 import {
   getAllWellBeingData,
   getWellBeingCategoryTypes,
@@ -20,10 +21,11 @@ import {
 } from './utils/notable';
 
 const VIEW_OPTIONS = [
+  { key: 'record-feed', label: 'Record data' },
+  { key: 'entry', label: 'Manual entry' },
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'explorer', label: 'Explorer' },
   { key: 'calendar', label: 'Calendar' },
-  { key: 'entry', label: 'Record data' },
   { key: 'definitions', label: 'Definitions' },
 ] as const;
 
@@ -99,7 +101,7 @@ const buildDateCategoriesMap = (
 
 function App() {
   const today = new Date();
-  const [mode, setMode] = useState<ViewMode>('dashboard');
+  const [mode, setMode] = useState<ViewMode>('record-feed');
   const [selectedDate, setSelectedDate] = useState<string | undefined>();
   const [selectedDateEntries, setSelectedDateEntries] = useState<WellBeingEntry[]>([]);
   const [selectedDateLoading, setSelectedDateLoading] = useState(false);
@@ -437,7 +439,9 @@ function App() {
         ))}
       </div>
 
-      {mode === 'dashboard' ? (
+      {mode === 'record-feed' ? (
+        <WellBeingRecordingFeed />
+      ) : mode === 'dashboard' ? (
         <WellBeingDashboard />
       ) : mode === 'explorer' ? (
         <WellBeingDataExplorer />
